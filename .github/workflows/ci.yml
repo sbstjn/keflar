@@ -18,22 +18,37 @@ jobs:
             use_swift_build: true
             destination: ''
             sdk: ''
+            xcode_select: /Applications/Xcode_26.0.1.app/Contents/Developer
           - name: iOS 26.0.1 Simulator (iPhone 17)
             use_swift_build: false
             destination: 'platform=iOS Simulator,OS=26.0.1,name=iPhone 17,arch=arm64'
             sdk: iphonesimulator26.0
+            xcode_select: /Applications/Xcode_26.0.1.app/Contents/Developer
           - name: iOS 26.0.1 Simulator (iPad mini A17 Pro)
             use_swift_build: false
             destination: 'platform=iOS Simulator,OS=26.0.1,name=iPad mini (A17 Pro),arch=arm64'
             sdk: iphonesimulator26.0
+            xcode_select: /Applications/Xcode_26.0.1.app/Contents/Developer
+          - name: iOS 26.1 Simulator (iPhone 17)
+            use_swift_build: false
+            destination: 'platform=iOS Simulator,OS=26.1,name=iPhone 17,arch=arm64'
+            sdk: iphonesimulator26.1
+            xcode_select: /Applications/Xcode_26.1.1.app/Contents/Developer
+          - name: iOS 26.2 Simulator (iPhone 17)
+            use_swift_build: false
+            destination: 'platform=iOS Simulator,OS=26.2,name=iPhone 17,arch=arm64'
+            sdk: iphonesimulator26.2
+            xcode_select: /Applications/Xcode_26.2.app/Contents/Developer
           - name: tvOS 26.0 Simulator
             use_swift_build: false
             destination: 'platform=tvOS Simulator,OS=26.0,name=Apple TV,arch=arm64'
             sdk: appletvsimulator26.0
+            xcode_select: /Applications/Xcode_26.0.1.app/Contents/Developer
           - name: visionOS 26.0 Simulator
             use_swift_build: false
             destination: 'platform=visionOS Simulator,OS=26.0,name=Apple Vision Pro,arch=arm64'
             sdk: xrsimulator26.0
+            xcode_select: /Applications/Xcode_26.0.1.app/Contents/Developer
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,8 +60,8 @@ jobs:
           key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
           restore-keys: spm-${{ runner.os }}-
 
-      - name: Select Xcode 26.0.1
-        run: sudo xcode-select -s /Applications/Xcode_26.0.1.app/Contents/Developer
+      - name: Select Xcode
+        run: sudo xcode-select -s ${{ matrix.xcode_select }}
 
       - name: Build (${{ matrix.name }})
         run: |
