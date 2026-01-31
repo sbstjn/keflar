@@ -9,7 +9,7 @@ Opinionated Swift library for controlling [KEF](https://www.kef.com) speakers on
 
 ### Public API
 
-- **SpeakerConnection** — Entry point: `probe()` and `connect()` to reach a speaker.
+- **SpeakerConnection** — Entry point: `probe()` fetches basic speaker info (host, model, version, name) for discovery or overviews; `connect()` establishes full connectivity with live state updates via the event stream.
 - **Speaker** — Main API: transport (play, pause, seek, volume, mute), source, shuffle/repeat, Tidal playlists, play context (like/favorite), play queue.
 - **SpeakerState** — Shadow state (observe for updates); includes volume, mute, playerState, playTime, currentSong metadata, shuffle, repeatMode.
 - **CurrentSong**, **AudioCodecInfo** — Playback info from shadow state (no extra requests).
@@ -51,9 +51,10 @@ import keflar
 
 let connection = SpeakerConnection(host: "192.168.1.100")
 
-// Optional: probe before connecting (host, model, version, name)
+// Optional: probe fetches basic info only (host, model, version, name) — e.g. for discovery or overviews
 let probe = try await connection.probe()
 
+// connect establishes full connectivity with live state updates
 let speaker = try await connection.connect()
 // connect(awaitInitialState: true, countRequests: false) — set countRequests: true to read request counts via getRequestCounts()
 
