@@ -25,7 +25,7 @@ public struct RequestCounts: Sendable {
 
 // MARK: - Response DTOs
 
-/// Typed value for getData(path: "player:player/data") response. Use for type-safe access to state, trackRoles, and path.
+/// Typed accessor for getData(path: "player:player/data") response. DTO suffix denotes a data-transfer view over an untyped dict: provides type-safe access to state, trackRoles, and path while retaining raw dict for parsers.
 public struct PlayerDataDTO {
     public let state: String?
     public let trackRoles: [String: Any]?

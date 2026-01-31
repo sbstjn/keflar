@@ -11,7 +11,7 @@ enum StateReducer {
         let eventApply: EventApply
     }
 
-    /// Extract player data fields (playerState, duration, currentQueueIndex) from player:player/data dict.
+    /// Extract (single-field pull from nested dict) player data fields; parse... is used for full-model transformation elsewhere.
     private static func extractPlayerDataFields(
         playerState: inout String?,
         duration: inout Int?,
@@ -23,7 +23,7 @@ enum StateReducer {
         currentQueueIndex = parseQueueIndex(from: dict)
     }
 
-    /// Extract play mode fields (shuffle, repeatMode) from settings:/mediaPlayer/playMode dict.
+    /// Extract (single-field pull) play mode fields from settings:/mediaPlayer/playMode dict.
     private static func extractPlayModeFields(
         shuffle: inout Bool?,
         repeatMode: inout RepeatMode?,

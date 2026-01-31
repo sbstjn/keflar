@@ -1,5 +1,7 @@
 import Foundation
 
+// Parsers: parse... transforms a dict into a typed model (e.g. parsePlayContextActions → PlayContextActions). Extractors: extract... returns a single value from a nested structure (e.g. extractPlayContextPath → String?).
+
 /// Extract content play context path for the current track (getRows target for like/favorite actions). Internal for testing.
 func extractPlayContextPath(from playerData: [String: Any]) -> String? {
     let trackRoles = playerData["trackRoles"] as? [String: Any] ?? [:]

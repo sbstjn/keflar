@@ -1,6 +1,7 @@
 import Foundation
 
-/// Event polling state machine; manages queue subscription and long-poll lifecycle.
+/// Event polling state machine: manages queue subscription and long-poll lifecycle.
+/// Lifecycle: ensure queue (create or reuse if not stale) → pollQueue → parse events → merge into state → notify. Queue is recreated when missing or older than `queueStaleInterval`.
 final class EventPollState {
     let client: any SpeakerClientProtocol
     let pollTimeout: TimeInterval

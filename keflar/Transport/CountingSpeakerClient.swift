@@ -1,6 +1,7 @@
 import Foundation
 
-/// Wraps a client and counts each HTTP request by type. Use when connecting with `countRequests: true`.
+/// Wraps a client and counts each HTTP request by type (getData, setData, setDataWithBody, getRows, modifyQueue, pollQueue).
+/// Use when connecting with `countRequests: true` to read counts via `Speaker.getRequestCounts()` for testing or debugging request volume.
 struct CountingSpeakerClient: SpeakerClientProtocol, Sendable {
     private let wrapped: any SpeakerClientProtocol
     private let counter: RequestCounter

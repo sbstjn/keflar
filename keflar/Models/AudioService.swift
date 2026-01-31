@@ -1,6 +1,8 @@
 import Foundation
 
 /// Streaming audio service supported via Airable proxy (Tidal, Spotify, Qobuz, etc.).
+///
+/// Public API exposes the service identifier (`id`) and static instances (e.g. `.tidal`). Path properties are `internal` so the library can use them for proxy resolution and playlist/track paths without exposing implementation details in the public API surface.
 public struct AudioService: Sendable, Hashable {
     /// Service identifier (e.g., "tidal", "spotify").
     public let id: String
