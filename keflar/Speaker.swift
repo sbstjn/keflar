@@ -326,6 +326,13 @@ public final class Speaker: ObservableObject {
 
     // MARK: - Play context (like/favorite, current track)
 
+    /// Refresh cached player data from the device (getData player:player/data). Use when shadow state may be stale (e.g. after track change) so currentPlayContextPath and currentSong are up to date.
+    public func refreshPlayerData() async throws {
+        let data = try await client.getData(path: playerDataPath)
+        StateReducer.applyToState(path: playerDataPath, dict: data, state: &stateHolder.state)
+        stateHolder.notifyStateChanged()
+    }
+
     /// Content play context path for the current track (from shadow state). Nil when nothing is playing or track has no context (e.g. non-streaming source). Use with `fetchPlayContextActions()` to get like/favorite actions.
     public var currentPlayContextPath: String? {
         cachedPlayerData.flatMap { extractPlayContextPath(from: $0.raw) }

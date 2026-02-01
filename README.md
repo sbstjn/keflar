@@ -87,10 +87,6 @@ class SpeakerViewModel: ObservableObject {
             self.error = error
         }
     }
-    
-    func disconnect() {
-        speaker = nil
-    }
 }
 
 struct PlayerView: View {
