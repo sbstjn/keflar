@@ -87,6 +87,8 @@ final class EventPollState: @unchecked Sendable {
             consecutivePollFailures = 0
             firstPollFailureTime = nil
             reconnectingReported = false
+            // Force a new queue on next poll so we get a fresh subscription; the device may have invalidated the previous queue during the outage.
+            lastSubscribedAt = nil
             onConnectionEvent?(.recovered)
         }
     }
