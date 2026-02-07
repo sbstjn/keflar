@@ -85,6 +85,7 @@ public final class Speaker {
 
     private let client: any SpeakerClientProtocol
     private let stateHolder: SpeakerStateHolder
+    private let connectionEventBox = ConnectionEventBox()
     private let pollState: EventPollState
     private let events: AsyncStream<SpeakerEvents>
     private let eventDriveTaskBox = EventDriveTaskBox()
@@ -107,7 +108,6 @@ public final class Speaker {
         self.client = client
         let graceMinFailures = connectionPolicy?.graceMinFailures ?? connectionGraceMinFailures
         let graceDuration = connectionPolicy?.graceDuration ?? connectionGraceDuration
-        let connectionEventBox = ConnectionEventBox()
         self.pollState = EventPollState(
             client: client,
             queueId: queueId,
@@ -115,8 +115,8 @@ public final class Speaker {
             stateHolder: holder,
             graceMinFailures: graceMinFailures,
             graceDuration: graceDuration,
-            onConnectionEvent: { [weak connectionEventBox] event in
-                Task { @MainActor in connectionEventBox?.trigger(event) }
+            onConnectionEvent: { [weak box = self.connectionEventBox] event in
+                Task { @MainActor in box?.trigger(event) }
             }
         )
         self.events = AsyncStream(unfolding: { [pollState] in

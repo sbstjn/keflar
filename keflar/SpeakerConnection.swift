@@ -53,7 +53,7 @@ public struct SpeakerConnection {
     ///   - awaitInitialState: If true (default), waits for initial getData (parallel requests) so the returned Speaker has fresh state immediately; avoids waiting for the event long-poll (slower). If false, returns immediately and state fills in as fetchInitialState completes in the background.
     ///   - countRequests: If true, wraps the client in a counter so you can read HTTP request counts via `speaker.getRequestCounts()`.
     ///   - connectionPolicy: Optional grace period for connection loss; when nil, library defaults are used.
-    ///   - connectTimeout: Optional request timeout (seconds) for the connection phase (releasetext, modifyQueue, initial state). When nil, default URLSession timeouts are used. Use a shorter value (e.g. 6–8 s) for local LAN to fail fast when the speaker is unreachable.
+    ///   - connectTimeout: Optional request timeout (seconds) per request during the connection phase (releasetext, modifyQueue, initial state). When nil, default URLSession timeouts are used. For reconnect callers, use a value that allows releasetext + modifyQueue + fetchInitialState to complete (e.g. ≥ 3 s on local LAN); for initial connect a shorter value can fail fast when unreachable.
     public func connect(awaitInitialState: Bool = true, countRequests: Bool = false, connectionPolicy: ConnectionPolicy? = nil, connectTimeout: TimeInterval? = nil) async throws -> Speaker {
         let session: URLSession
         if let connectTimeout {
@@ -63,7 +63,7 @@ public struct SpeakerConnection {
         } else {
             session = .shared
         }
-        let base = DefaultSpeakerClient(host: host, session: session)
+        let base = DefaultSpeakerClient(host: host, session: session, requestTimeout: connectTimeout)
         let client: any SpeakerClientProtocol = countRequests ? CountingSpeakerClient(wrapping: base) : base
         let refresherBox = RefresherBox()
         let refreshingClient = StateRefreshingClient(wrapping: client, refresher: refresherBox)

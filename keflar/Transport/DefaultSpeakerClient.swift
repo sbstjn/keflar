@@ -38,10 +38,13 @@ private let maxGetRowsRange = 1000
 struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
     let host: String
     let session: URLSession
+    /// When set, overrides default timeouts for getData, modifyQueue, getRows, setData (e.g. 1s for reconnect on local LAN).
+    let requestTimeout: TimeInterval?
 
-    init(host: String, session: URLSession = .shared) {
+    init(host: String, session: URLSession = .shared, requestTimeout: TimeInterval? = nil) {
         self.host = host
         self.session = session
+        self.requestTimeout = requestTimeout
     }
 
     private func makeURL(apiPath: String, queryItems: [URLQueryItem]?) -> URL? {
@@ -128,7 +131,7 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
         ]) else {
             throw SpeakerConnectError.invalidURL
         }
-        let request = makeRequest(url: url, timeout: defaultRequestTimeout)
+        let request = makeRequest(url: url, timeout: requestTimeout ?? defaultRequestTimeout)
         let (data, _) = try await dataForRequest(request)
         let json: Any
         do {
@@ -152,7 +155,7 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
         if bodyData.count > maxRequestBodySize {
             throw SpeakerConnectError.invalidSource("setData body must not exceed \(maxRequestBodySize) bytes")
         }
-        let request = makeRequest(url: url, method: "POST", body: bodyData, timeout: longRequestTimeout)
+        let request = makeRequest(url: url, method: "POST", body: bodyData, timeout: requestTimeout ?? longRequestTimeout)
         let (data, response) = try await dataForRequest(request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw SpeakerConnectError.invalidJSON(responsePreview: "setData status \(http.statusCode); body: \(errorPreview(from: data))")
@@ -170,7 +173,7 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
         ]) else {
             throw SpeakerConnectError.invalidURL
         }
-        let request = makeRequest(url: url, timeout: longRequestTimeout)
+        let request = makeRequest(url: url, timeout: requestTimeout ?? longRequestTimeout)
         let (data, response) = try await dataForRequest(request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw SpeakerConnectError.invalidJSON(responsePreview: "getRows status \(http.statusCode); body: \(errorPreview(from: data))")
@@ -192,7 +195,7 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
             throw SpeakerConnectError.invalidResponseStructure
         }
-        let request = makeRequest(url: url, method: "POST", body: bodyData, timeout: longRequestTimeout)
+        let request = makeRequest(url: url, method: "POST", body: bodyData, timeout: requestTimeout ?? longRequestTimeout)
         let (data, _) = try await dataForRequest(request)
         let preview = errorPreview(from: data)
         let json: Any
