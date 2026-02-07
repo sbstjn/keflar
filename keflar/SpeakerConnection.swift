@@ -85,6 +85,7 @@ public struct SpeakerConnection {
         refresherBox.speaker = speaker
         if awaitInitialState {
             await fetchInitialState(client: refreshingClient, stateHolder: stateHolder)
+            await MainActor.run { stateHolder.notifyStateChanged() }
         } else {
             let ctx = SendableFetchContext(client: refreshingClient, stateHolder: stateHolder)
             Task(name: "SpeakerConnection.fetchInitialState") { await fetchInitialState(client: ctx.client, stateHolder: ctx.stateHolder) }
