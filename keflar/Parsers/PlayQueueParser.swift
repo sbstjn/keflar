@@ -4,18 +4,18 @@ import Foundation
 func parsePlayQueue(from getRowsResponse: [String: Any]) -> PlayQueueResult {
     let rows = getRowsResponse["rows"] as? [[String: Any]] ?? []
     let totalCount: Int?
-    if let n = getRowsResponse["rowsCount"] as? Int {
-        totalCount = n
-    } else if let n = getRowsResponse["rowsCount"] as? NSNumber {
-        totalCount = n.intValue
+    if let count = getRowsResponse["rowsCount"] as? Int {
+        totalCount = count
+    } else if let num = getRowsResponse["rowsCount"] as? NSNumber {
+        totalCount = num.intValue
     } else {
         totalCount = nil
     }
     var items: [PlayQueueItem] = []
     for (offset, row) in rows.enumerated() {
         let index: Int
-        if let value = row["value"] as? [String: Any], let i = value["i32_"] as? Int {
-            index = i
+        if let value = row["value"] as? [String: Any], let queueIndex = value["i32_"] as? Int {
+            index = queueIndex
         } else {
             index = offset
         }

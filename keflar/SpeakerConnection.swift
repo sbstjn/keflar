@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Sendable box so background fetch Task can capture client and stateHolder without Sendable errors.
 private struct SendableFetchContext: @unchecked Sendable {
@@ -32,8 +33,8 @@ public struct SpeakerConnection {
     /// Probe the speaker; returns SpeakerProbe if reachable (releasetext + optional deviceName; no queue subscription or state).
     public func probe() async throws -> SpeakerProbe {
         let client = DefaultSpeakerClient(host: host, session: .shared)
-        async let releasetextTask = client.getData(path: "settings:/releasetext")
-        async let deviceNameTask = client.getData(path: "settings:/deviceName")
+        async let releasetextTask = client.getData(path: APIPath.releasetext.path)
+        async let deviceNameTask = client.getData(path: APIPath.deviceName.path)
         let first = try await releasetextTask
         guard let releaseText = first["string_"] as? String else {
             let preview = String(describing: first)
@@ -50,11 +51,16 @@ public struct SpeakerConnection {
 
     /// Connect to the speaker; returns the connected Speaker instance.
     /// - Parameters:
-    ///   - awaitInitialState: If true (default), waits for initial getData (parallel requests) so the returned Speaker has fresh state immediately; avoids waiting for the event long-poll (slower). If false, returns immediately and state fills in as fetchInitialState completes in the background.
+    ///   - awaitInitialState: If true (default), waits for initial getData (parallel requests) so the returned Speaker has fresh state immediately; if false, returns immediately and state fills in as fetchInitialState completes.
     ///   - countRequests: If true, wraps the client in a counter so you can read HTTP request counts via `speaker.getRequestCounts()`.
     ///   - connectionPolicy: Optional grace period for connection loss; when nil, library defaults are used.
-    ///   - connectTimeout: Optional request timeout (seconds) per request during the connection phase (releasetext, modifyQueue, initial state). When nil, default URLSession timeouts are used. For reconnect callers, use a value that allows releasetext + modifyQueue + fetchInitialState to complete (e.g. ≥ 3 s on local LAN); for initial connect a shorter value can fail fast when unreachable.
-    public func connect(awaitInitialState: Bool = true, countRequests: Bool = false, connectionPolicy: ConnectionPolicy? = nil, connectTimeout: TimeInterval? = nil) async throws -> Speaker {
+    ///   - connectTimeout: Optional request timeout (seconds) per request during connection (releasetext, modifyQueue, initial state). When nil, default URLSession timeouts are used. For reconnect use ≥ 3 s on LAN.
+    public func connect(
+        awaitInitialState: Bool = true,
+        countRequests: Bool = false,
+        connectionPolicy: ConnectionPolicy? = nil,
+        connectTimeout: TimeInterval? = nil
+    ) async throws -> Speaker {
         let session: URLSession
         if let connectTimeout {
             let config = URLSessionConfiguration.default
@@ -67,7 +73,7 @@ public struct SpeakerConnection {
         let client: any SpeakerClientProtocol = countRequests ? CountingSpeakerClient(wrapping: base) : base
         let refresherBox = RefresherBox()
         let refreshingClient = StateRefreshingClient(wrapping: client, refresher: refresherBox)
-        let first = try await refreshingClient.getData(path: "settings:/releasetext")
+        let first = try await refreshingClient.getData(path: APIPath.releasetext.path)
         guard let releaseText = first["string_"] as? String else {
             let preview = String(describing: first)
             let truncated = preview.count > 500 ? String(preview.prefix(500)) + "..." : preview
@@ -78,14 +84,32 @@ public struct SpeakerConnection {
         let version = parts.dropFirst().first ?? ""
 
         let queueId = try await refreshingClient.modifyQueue()
-        let stateHolder = SpeakerStateHolder()
+        let (stateStream, stateContinuation) = AsyncStream.makeStream(of: SpeakerState.self)
+        let stateHolder = SpeakerStateHolder(continuation: stateContinuation)
+        let transport = DefaultSpeakerTransport(client: refreshingClient)
+        let proxyResolver = AirableProxyResolver(client: refreshingClient, stateHolder: stateHolder)
+        let playlistManager = DefaultPlaylistManager(
+            client: refreshingClient,
+            proxyResolver: proxyResolver,
+            stateHolder: stateHolder
+        )
         let speaker = await MainActor.run {
-            Speaker(model: model, version: version, client: refreshingClient, queueId: queueId, stateHolder: stateHolder, connectionPolicy: connectionPolicy)
+            Speaker(
+                model: model,
+                version: version,
+                client: refreshingClient,
+                transport: transport,
+                playlistManager: playlistManager,
+                queueId: queueId,
+                stateHolder: stateHolder,
+                stateStream: stateStream,
+                connectionPolicy: connectionPolicy
+            )
         }
         refresherBox.speaker = speaker
+        Logger.keflar.info("Connected to \(model) v\(version)")
         if awaitInitialState {
             await fetchInitialState(client: refreshingClient, stateHolder: stateHolder)
-            await MainActor.run { stateHolder.notifyStateChanged() }
         } else {
             let ctx = SendableFetchContext(client: refreshingClient, stateHolder: stateHolder)
             Task(name: "SpeakerConnection.fetchInitialState") { await fetchInitialState(client: ctx.client, stateHolder: ctx.stateHolder) }

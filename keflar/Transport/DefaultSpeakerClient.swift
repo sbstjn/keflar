@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - Constants
 
@@ -98,6 +99,7 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
         do {
             return try await session.data(for: request)
         } catch {
+            Logger.network.error("Request failed: \(error.localizedDescription)")
             if let reason = transportFailureReason(from: error) {
                 throw SpeakerConnectError.connectionUnavailable(reason)
             }
@@ -125,6 +127,9 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
 
     func getData(path: String) async throws -> [String: Any] {
         try validatePath(path)
+        let ctx = RequestLogContext(path: path)
+        let start = Date()
+        Logger.network.debug("\(ctx.logMessage(suffix: "GET getData"))")
         guard let url = makeURL(apiPath: "/api/getData", queryItems: [
             URLQueryItem(name: "path", value: path),
             URLQueryItem(name: "roles", value: "value"),
@@ -133,6 +138,8 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
         }
         let request = makeRequest(url: url, timeout: requestTimeout ?? defaultRequestTimeout)
         let (data, _) = try await dataForRequest(request)
+        let elapsedMs = Int(Date().timeIntervalSince(start) * 1000)
+        Logger.network.debug("\(ctx.logMessage(suffix: "GET getData durationMs=\(elapsedMs)"))")
         let json: Any
         do {
             json = try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)
@@ -145,18 +152,27 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
         return first
     }
 
-    func setDataWithBody(path: String, role: String, value: SendableBody) async throws {
+    func setDataWithBody<E: Encodable>(path: String, role: String, value: E) async throws {
         try validatePath(path)
+        let ctx = RequestLogContext(path: path)
+        let start = Date()
+        Logger.network.debug("\(ctx.logMessage(suffix: "POST setData role=\(role)"))")
         guard let url = makeURL(apiPath: "/api/setData", queryItems: nil) else {
             throw SpeakerConnectError.invalidURL
         }
-        let body: [String: Any] = ["path": path, "role": role, "value": value.value]
+        let valueData = try JSONEncoder().encode(value)
+        guard let valueObj = try JSONSerialization.jsonObject(with: valueData) as? [String: Any] else {
+            throw SpeakerConnectError.invalidSource("setData value must encode to a JSON object")
+        }
+        let body: [String: Any] = ["path": path, "role": role, "value": valueObj]
         let bodyData = try JSONSerialization.data(withJSONObject: body)
         if bodyData.count > maxRequestBodySize {
             throw SpeakerConnectError.invalidSource("setData body must not exceed \(maxRequestBodySize) bytes")
         }
         let request = makeRequest(url: url, method: "POST", body: bodyData, timeout: requestTimeout ?? longRequestTimeout)
         let (data, response) = try await dataForRequest(request)
+        let elapsedMs = Int(Date().timeIntervalSince(start) * 1000)
+        Logger.network.debug("\(ctx.logMessage(suffix: "POST setData durationMs=\(elapsedMs)"))")
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw SpeakerConnectError.invalidJSON(responsePreview: "setData status \(http.statusCode); body: \(errorPreview(from: data))")
         }

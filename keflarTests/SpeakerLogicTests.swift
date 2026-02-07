@@ -9,91 +9,91 @@ import Testing
 
 struct SpeakerLogicTests {
 
-    // MARK: - StateReducer.applyToState
+    // MARK: - StateApplier.applyToState
 
-    @Test func stateReducerApplyVolume() {
+    @Test func stateApplierApplyVolume() {
         var state = SpeakerState()
-        StateReducer.applyToState(path: "player:volume", dict: ["i32_": 42], state: &state)
+        StateApplier.applyToState(path: "player:volume", dict: ["i32_": 42], state: &state)
         #expect(state.volume == 42)
     }
 
-    @Test func stateReducerApplyPhysicalSource() {
+    @Test func stateApplierApplyPhysicalSource() {
         var state = SpeakerState()
-        StateReducer.applyToState(path: "settings:/kef/play/physicalSource", dict: ["kefPhysicalSource": "wifi"], state: &state)
+        StateApplier.applyToState(path: "settings:/kef/play/physicalSource", dict: ["kefPhysicalSource": "wifi"], state: &state)
         #expect(state.source == "wifi")
     }
 
-    @Test func stateReducerApplyPlayerDataPath() {
+    @Test func stateApplierApplyPlayerDataPath() {
         var state = SpeakerState()
         let dict: [String: Any] = [
             "state": "playing",
             "status": ["duration": 158226] as [String: Any],
             "trackRoles": ["path": "airable:https://x.airable.io/id/tidal/track/1", "value": ["i32_": 8] as [String: Any]] as [String: Any],
         ]
-        StateReducer.applyToState(path: "player:player/data", dict: dict, state: &state)
+        StateApplier.applyToState(path: "player:player/data", dict: dict, state: &state)
         #expect(state.playerState == "playing")
         #expect(state.duration == 158226)
         #expect(state.currentQueueIndex == 8)
-        #expect(state.other["player:player/data"] as? [String: Any] != nil)
+        #expect(state.typedData[.playerData]?.value != nil)
     }
 
-    @Test func stateReducerApplyUnknownPathToOther() {
+    @Test func stateApplierApplyUnknownPathToOther() {
         var state = SpeakerState()
-        StateReducer.applyToState(path: "custom:path", dict: ["key": "value"], state: &state)
-        #expect((state.other["custom:path"] as? [String: Any])?["key"] as? String == "value")
+        StateApplier.applyToState(path: "custom:path", dict: ["key": "value"], state: &state)
+        #expect(state.typedData[.custom("custom:path")]?.value["key"] as? String == "value")
     }
 
-    @Test func stateReducerApplyPlayModeShuffle() {
+    @Test func stateApplierApplyPlayModeShuffle() {
         var state = SpeakerState()
-        StateReducer.applyToState(path: "settings:/mediaPlayer/playMode", dict: ["type": "playerPlayMode", "playerPlayMode": "shuffle"], state: &state)
+        StateApplier.applyToState(path: "settings:/mediaPlayer/playMode", dict: ["type": "playerPlayMode", "playerPlayMode": "shuffle"], state: &state)
         #expect(state.shuffle == true)
         #expect(state.repeatMode == .off)
     }
 
-    @Test func stateReducerApplyPlayModeRepeatOne() {
+    @Test func stateApplierApplyPlayModeRepeatOne() {
         var state = SpeakerState()
-        StateReducer.applyToState(path: "settings:/mediaPlayer/playMode", dict: ["type": "playerPlayMode", "playerPlayMode": "repeatOne"], state: &state)
+        StateApplier.applyToState(path: "settings:/mediaPlayer/playMode", dict: ["type": "playerPlayMode", "playerPlayMode": "repeatOne"], state: &state)
         #expect(state.shuffle == false)
         #expect(state.repeatMode == .one)
     }
 
-    @Test func stateReducerApplyPlayModeNormal() {
+    @Test func stateApplierApplyPlayModeNormal() {
         var state = SpeakerState()
-        StateReducer.applyToState(path: "settings:/mediaPlayer/playMode", dict: ["type": "playerPlayMode", "playerPlayMode": "normal"], state: &state)
+        StateApplier.applyToState(path: "settings:/mediaPlayer/playMode", dict: ["type": "playerPlayMode", "playerPlayMode": "normal"], state: &state)
         #expect(state.shuffle == false)
         #expect(state.repeatMode == .off)
     }
 
-    // MARK: - StateReducer.parseEvents
+    // MARK: - EventParser.parseEvents
 
-    @Test func stateReducerParseEventsVolume() {
+    @Test func eventParserParseEventsVolume() {
         let pathToItemValue: [String: Any] = ["player:volume": ["i32_": 50]]
-        let events = StateReducer.parseEvents(pathToItemValue: pathToItemValue)
+        let events = EventParser.parseEvents(pathToItemValue: pathToItemValue)
         #expect(events.volume == 50)
     }
 
-    @Test func stateReducerParseEventsMultipleAndUnknown() {
+    @Test func eventParserParseEventsMultipleAndUnknown() {
         let pathToItemValue: [String: Any] = [
             "player:volume": ["i32_": 30],
             "settings:/deviceName": ["string_": "KEF"],
             "unknown:path": ["foo": 1],
         ]
-        let events = StateReducer.parseEvents(pathToItemValue: pathToItemValue)
+        let events = EventParser.parseEvents(pathToItemValue: pathToItemValue)
         #expect(events.volume == 30)
         #expect(events.deviceName == "KEF")
         #expect((events.other["unknown:path"] as? [String: Any])?["foo"] as? Int == 1)
     }
 
-    @Test func stateReducerParseEventsPlayMode() {
+    @Test func eventParserParseEventsPlayMode() {
         let pathToItemValue: [String: Any] = [
             "settings:/mediaPlayer/playMode": ["type": "playerPlayMode", "playerPlayMode": "repeatOne"] as [String: Any],
         ]
-        let events = StateReducer.parseEvents(pathToItemValue: pathToItemValue)
+        let events = EventParser.parseEvents(pathToItemValue: pathToItemValue)
         #expect(events.shuffle == false)
         #expect(events.repeatMode == .one)
     }
 
-    @Test func stateReducerParseEventsPlayerDataPathDurationAndQueueIndex() {
+    @Test func eventParserParseEventsPlayerDataPathDurationAndQueueIndex() {
         let pathToItemValue: [String: Any] = [
             "player:player/data": [
                 "state": "playing",
@@ -101,7 +101,7 @@ struct SpeakerLogicTests {
                 "trackRoles": ["value": ["i32_": 3] as [String: Any]] as [String: Any],
             ] as [String: Any],
         ]
-        let events = StateReducer.parseEvents(pathToItemValue: pathToItemValue)
+        let events = EventParser.parseEvents(pathToItemValue: pathToItemValue)
         #expect(events.playerState == "playing")
         #expect(events.duration == 200000)
         #expect(events.currentQueueIndex == 3)

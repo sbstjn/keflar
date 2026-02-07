@@ -34,7 +34,9 @@ private nonisolated(unsafe) let mergeAppliers: [MergeApplier] = [
 func mergeEvents(_ batch: SpeakerEvents, into state: inout SpeakerState) {
     let oldSource = state.source
     for apply in mergeAppliers { apply(batch, &state) }
-    for (k, v) in batch.other { state.other[k] = v }
+    for (k, v) in batch.other {
+        state.typedData[APIPath.from(k)] = SendableDict(value: (v as? [String: Any]) ?? [:])
+    }
     if let newSource = state.source, newSource != oldSource {
         let known = knownSourceRawValues.contains(newSource)
         mergeLog.info("source switched from \(oldSource ?? "nil") to \(newSource) known=\(known)")

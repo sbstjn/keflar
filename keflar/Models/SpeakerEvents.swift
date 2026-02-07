@@ -1,8 +1,8 @@
 import Foundation
 
 /// Delta: one batch from the event stream. Internal; not part of the public API.
-/// Not `Sendable`: `other` holds `[String: Any]`. Used only within the library from a single context.
-struct SpeakerEvents {
+/// Marked `@unchecked Sendable` so it can be passed into actor updateState closures.
+struct SpeakerEvents: @unchecked Sendable {
     var source: String?
     var volume: Int?
     var mute: Bool?

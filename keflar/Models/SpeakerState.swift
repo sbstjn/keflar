@@ -1,10 +1,47 @@
 import Foundation
 
+/// Focused slice of state for volume/mute. Observe this to reduce re-renders when only volume changes.
+public struct VolumeState: Equatable, Sendable {
+    public var volume: Int?
+    public var mute: Bool?
+
+    public init(volume: Int? = nil, mute: Bool? = nil) {
+        self.volume = volume
+        self.mute = mute
+    }
+}
+
+/// Focused slice of state for playback. Observe this to reduce re-renders when only playback changes.
+public struct PlaybackStateSlice: Equatable, Sendable {
+    public var playerState: String?
+    public var playTime: Int?
+    public var duration: Int?
+    public var currentQueueIndex: Int?
+    public var shuffle: Bool?
+    public var repeatMode: RepeatMode?
+
+    public init(
+        playerState: String? = nil,
+        playTime: Int? = nil,
+        duration: Int? = nil,
+        currentQueueIndex: Int? = nil,
+        shuffle: Bool? = nil,
+        repeatMode: RepeatMode? = nil
+    ) {
+        self.playerState = playerState
+        self.playTime = playTime
+        self.duration = duration
+        self.currentQueueIndex = currentQueueIndex
+        self.shuffle = shuffle
+        self.repeatMode = repeatMode
+    }
+}
+
 /// Accumulated shadow state of the remote device; updated from initial getData and event batches.
 ///
-/// Not `Sendable`: `other` holds `[String: Any]` (API payloads). Use from a single isolation context;
-/// the library expects one `Speaker` instance per connection, used from one actor or the main thread.
-public struct SpeakerState {
+/// Marked `@unchecked Sendable` so it can be passed across actor boundaries (e.g. from SpeakerStateHolder actor to MainActor).
+/// Raw payloads keyed by API path; use typed accessors (e.g. currentSong) or typedData[.playerData] for known paths.
+public struct SpeakerState: @unchecked Sendable {
     public var source: String?
     public var volume: Int?
     public var mute: Bool?
@@ -23,9 +60,11 @@ public struct SpeakerState {
     public var shuffle: Bool?
     /// Repeat mode from settings:/mediaPlayer/playMode.
     public var repeatMode: RepeatMode?
-    public var other: [String: Any]
+    /// Raw getData/event payloads by API path. Values are SendableDict (boxed [String: Any]). Internal; use typed accessors (e.g. currentSong) or path-specific APIs.
+    var typedData: [APIPath: SendableDict]
 
-    public init(
+    /// Internal: typedData uses internal SendableDict; library constructs state.
+    init(
         source: String? = nil,
         volume: Int? = nil,
         mute: Bool? = nil,
@@ -38,7 +77,7 @@ public struct SpeakerState {
         currentQueueIndex: Int? = nil,
         shuffle: Bool? = nil,
         repeatMode: RepeatMode? = nil,
-        other: [String: Any] = [:]
+        typedData: [APIPath: SendableDict] = [:]
     ) {
         self.source = source
         self.volume = volume
@@ -52,6 +91,6 @@ public struct SpeakerState {
         self.currentQueueIndex = currentQueueIndex
         self.shuffle = shuffle
         self.repeatMode = repeatMode
-        self.other = other
+        self.typedData = typedData
     }
 }

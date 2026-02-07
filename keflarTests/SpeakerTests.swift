@@ -37,7 +37,7 @@ private func formatAudioCodecInfo(_ info: AudioCodecInfo?) -> String {
 
 struct SpeakerTests {
 
-    /// Set speaker to wifi, play first song, scrub 10s, wait 5s (assert play progress). First skip with shuffle off, then enable shuffle and second skip; assert song after second skip is not the deterministic next (i.e. different from song after first skip).
+    /// Set speaker to wifi, play first song, scrub 10s, wait 5s. First skip with shuffle off, then enable shuffle and second skip; assert song after second skip differs from song after first skip.
     @MainActor
     @Test(.disabled("Requires live speaker on network")) func playThenFlipModes() async throws {
         let name = "playThenFlipModes"

@@ -7,21 +7,20 @@ private let pollStateLog = Logger(subsystem: "com.sbstjn.keflar", category: "Eve
 /// Lifecycle: ensure queue (create or reuse if not stale) → pollQueue → parse events → merge into state → notify. Queue is recreated when missing or older than `queueStaleInterval`.
 /// After a grace period of consecutive failures (configurable), reports connection lost and terminates the stream.
 /// The library only reports `.reconnecting` / `.disconnected`; the app is responsible for reconnect retries (e.g. polling until success or user switches speaker).
-/// Used only from the single event-drive task per Speaker; marked Sendable for AsyncStream unfolding capture.
-final class EventPollState: @unchecked Sendable {
-    let client: any SpeakerClientProtocol
-    let pollTimeout: TimeInterval
-    let stateHolder: SpeakerStateHolder
-    let graceMinFailures: Int
-    let graceDuration: TimeInterval
-    let onConnectionEvent: (@Sendable (ConnectionEvent) -> Void)?
+actor EventPollState {
+    private let client: any SpeakerClientProtocol
+    private let pollTimeout: TimeInterval
+    private let stateHolder: SpeakerStateHolder
+    private let graceMinFailures: Int
+    private let graceDuration: TimeInterval
+    private let connectionEventContinuation: AsyncStream<ConnectionEvent>.Continuation?
 
-    var queueId: String?
-    var lastSubscribedAt: Date?
-    var consecutivePollFailures: Int = 0
-    var firstPollFailureTime: Date?
-    var reconnectingReported: Bool = false
-    var disconnectedReported: Bool = false
+    private var queueId: String?
+    private var lastSubscribedAt: Date?
+    private var consecutivePollFailures: Int = 0
+    private var firstPollFailureTime: Date?
+    private var reconnectingReported: Bool = false
+    private var disconnectedReported: Bool = false
 
     init(
         client: any SpeakerClientProtocol,
@@ -30,7 +29,7 @@ final class EventPollState: @unchecked Sendable {
         stateHolder: SpeakerStateHolder,
         graceMinFailures: Int = connectionGraceMinFailures,
         graceDuration: TimeInterval = connectionGraceDuration,
-        onConnectionEvent: (@Sendable (ConnectionEvent) -> Void)? = nil
+        connectionEventContinuation: AsyncStream<ConnectionEvent>.Continuation? = nil
     ) {
         self.client = client
         self.queueId = queueId
@@ -39,7 +38,7 @@ final class EventPollState: @unchecked Sendable {
         self.stateHolder = stateHolder
         self.graceMinFailures = graceMinFailures
         self.graceDuration = graceDuration
-        self.onConnectionEvent = onConnectionEvent
+        self.connectionEventContinuation = connectionEventContinuation
     }
 
     /// Ensure event queue is active; creates new queue if stale or missing.
@@ -79,9 +78,12 @@ final class EventPollState: @unchecked Sendable {
             if let physicalPayload = pathToItemValue["settings:/kef/play/physicalSource"] {
                 pollStateLog.info("poll received physicalSource payload=\(String(describing: physicalPayload))")
             }
-            let events = StateReducer.parseEvents(pathToItemValue: pathToItemValue)
-            mergeEvents(events, into: &stateHolder.state)
-            stateHolder.notifyStateChanged()
+            let events = EventParser.parseEvents(pathToItemValue: pathToItemValue)
+            await stateHolder.updateState { state in
+                var nextState = state
+                mergeEvents(events, into: &nextState)
+                return nextState
+            }
             return events
         } catch {
             recordPollFailure()
@@ -94,9 +96,8 @@ final class EventPollState: @unchecked Sendable {
             consecutivePollFailures = 0
             firstPollFailureTime = nil
             reconnectingReported = false
-            // Force a new queue on next poll so we get a fresh subscription; the device may have invalidated the previous queue during the outage.
             lastSubscribedAt = nil
-            onConnectionEvent?(.recovered)
+            connectionEventContinuation?.yield(.recovered)
         }
     }
 
@@ -107,14 +108,14 @@ final class EventPollState: @unchecked Sendable {
         }
         if !reconnectingReported {
             reconnectingReported = true
-            onConnectionEvent?(.reconnecting)
+            connectionEventContinuation?.yield(.reconnecting)
         }
         if consecutivePollFailures >= graceMinFailures,
            let first = firstPollFailureTime,
            Date().timeIntervalSince(first) >= graceDuration,
            !disconnectedReported {
             disconnectedReported = true
-            onConnectionEvent?(.disconnected)
+            connectionEventContinuation?.yield(.disconnected)
         }
     }
 

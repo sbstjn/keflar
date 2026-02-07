@@ -23,7 +23,8 @@ public struct RequestCounts: Sendable {
 
 // MARK: - Response DTOs
 
-/// Typed accessor for getData(path: "player:player/data") response. DTO suffix denotes a data-transfer view over an untyped dict: provides type-safe access to state, trackRoles, and path while retaining raw dict for parsers.
+/// Typed accessor for getData(path: "player:player/data") response.
+/// DTO suffix denotes a data-transfer view over an untyped dict: type-safe access to state, trackRoles, path; raw dict for parsers.
 public struct PlayerDataDTO {
     public let state: String?
     public let trackRoles: [String: Any]?
@@ -59,20 +60,13 @@ public struct ModifyQueueResponse: Sendable {
     }
 }
 
-// MARK: - Sendable body
-
-/// Sendable box for [String: Any] so MainActor-isolated callers can pass body to nonisolated client without data-race.
-struct SendableBody: @unchecked Sendable {
-    let value: [String: Any]
-}
-
 // MARK: - Protocol
 
 /// Transport abstraction for KEF speaker API; enables injection and testing without a real device.
 protocol SpeakerClientProtocol: Sendable {
     func getData(path: String) async throws -> [String: Any]
-    /// POST setData with JSON body (path, role, value). Used for player:player/control (transport, play-by-index) and value updates (volume, mute, play mode, source).
-    func setDataWithBody(path: String, role: String, value: SendableBody) async throws
+    /// POST setData with JSON body (path, role, value). Value is encoded as JSON for the "value" field.
+    func setDataWithBody<E: Encodable>(path: String, role: String, value: E) async throws
     func getRows(path: String, from: Int, to: Int) async throws -> [String: Any]
     func modifyQueue() async throws -> String
     func pollQueue(queueId: String, timeout: TimeInterval) async throws -> [[String: Any]]

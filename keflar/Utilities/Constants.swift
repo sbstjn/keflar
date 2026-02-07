@@ -1,24 +1,25 @@
 import Foundation
 
-// MARK: - API Path Constants
+// MARK: - API Paths
 
-internal let playerDataPath = "player:player/data"
-internal let playTimePath = "player:player/data/playTime"
-internal let playerControlPath = "player:player/control"
-internal let playQueuePath = "playlists:pq/getitems"
-internal let playModePath = "settings:/mediaPlayer/playMode"
+internal let playerDataPath = APIPath.playerData
+internal let playTimePath = APIPath.playTime
+internal let playerControlPath = APIPath.playerControl
+internal let playQueuePath = APIPath.playQueue
+internal let playModePath = APIPath.playMode
 
 // MARK: - Initial State Paths
 
-internal let initialGetDataPaths = [
-    "player:volume",
-    "settings:/kef/play/physicalSource",
-    "settings:/kef/host/speakerStatus",
-    "settings:/deviceName",
-    "settings:/mediaPlayer/mute",
-    "settings:/system/primaryMacAddress",
+internal let initialGetDataPaths: [APIPath] = [
+    .volume,
+    .physicalSource,
+    .speakerStatus,
+    .deviceName,
+    .mute,
+    .macAddress,
     playModePath,
     playerDataPath,
+    playTimePath,
 ]
 
 // MARK: - Timing Constants

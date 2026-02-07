@@ -1,0 +1,54 @@
+# keflar SwiftLint configuration
+# Run with: swift run swiftlint (if added as plugin) or swiftlint
+
+disabled_rules:
+  - todo
+
+opt_in_rules:
+  - strict_fileprivate
+  - explicit_self
+  - explicit_type_interface
+  - explicit_acl
+
+file_length:
+  warning: 300
+  error: 550
+
+function_body_length:
+  warning: 50
+  error: 70
+
+line_length:
+  warning: 120
+  error: 250
+
+cyclomatic_complexity:
+  warning: 10
+  error: 15
+
+type_name:
+  min_length: 3
+  max_length: 40
+
+type_body_length:
+  warning: 350
+  error: 450
+
+identifier_name:
+  allowed_symbols: ["_"]
+  excluded:
+    - s
+    - d
+    - e
+    - v
+    - k
+    - c
+    - p
+    - m
+    - n
+    - f
+    - r
+    - b
+    - i
+    - tr
+    - to

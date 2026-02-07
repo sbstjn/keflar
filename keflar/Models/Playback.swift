@@ -45,7 +45,15 @@ public struct AudioCodecInfo: Sendable {
     public var bitsPerSample: Int?
     public var serviceID: String?
 
-    public init(codec: String? = nil, sampleFrequency: Int? = nil, streamSampleRate: Int? = nil, streamChannels: String? = nil, nrAudioChannels: Int? = nil, bitsPerSample: Int? = nil, serviceID: String? = nil) {
+    public init(
+        codec: String? = nil,
+        sampleFrequency: Int? = nil,
+        streamSampleRate: Int? = nil,
+        streamChannels: String? = nil,
+        nrAudioChannels: Int? = nil,
+        bitsPerSample: Int? = nil,
+        serviceID: String? = nil
+    ) {
         self.codec = codec
         self.sampleFrequency = sampleFrequency
         self.streamSampleRate = streamSampleRate
