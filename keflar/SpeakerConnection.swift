@@ -56,7 +56,9 @@ public struct SpeakerConnection {
     public func connect(awaitInitialState: Bool = true, countRequests: Bool = false, connectionPolicy: ConnectionPolicy? = nil) async throws -> Speaker {
         let base = DefaultSpeakerClient(host: host, session: .shared)
         let client: any SpeakerClientProtocol = countRequests ? CountingSpeakerClient(wrapping: base) : base
-        let first = try await client.getData(path: "settings:/releasetext")
+        let refresherBox = RefresherBox()
+        let refreshingClient = StateRefreshingClient(wrapping: client, refresher: refresherBox)
+        let first = try await refreshingClient.getData(path: "settings:/releasetext")
         guard let releaseText = first["string_"] as? String else {
             let preview = String(describing: first)
             let truncated = preview.count > 500 ? String(preview.prefix(500)) + "..." : preview
@@ -66,15 +68,16 @@ public struct SpeakerConnection {
         let model = parts.first ?? ""
         let version = parts.dropFirst().first ?? ""
 
-        let queueId = try await client.modifyQueue()
+        let queueId = try await refreshingClient.modifyQueue()
         let stateHolder = SpeakerStateHolder()
         let speaker = await MainActor.run {
-            Speaker(model: model, version: version, client: client, queueId: queueId, stateHolder: stateHolder, connectionPolicy: connectionPolicy)
+            Speaker(model: model, version: version, client: refreshingClient, queueId: queueId, stateHolder: stateHolder, connectionPolicy: connectionPolicy)
         }
+        refresherBox.speaker = speaker
         if awaitInitialState {
-            await fetchInitialState(client: client, stateHolder: stateHolder)
+            await fetchInitialState(client: refreshingClient, stateHolder: stateHolder)
         } else {
-            let ctx = SendableFetchContext(client: client, stateHolder: stateHolder)
+            let ctx = SendableFetchContext(client: refreshingClient, stateHolder: stateHolder)
             Task(name: "SpeakerConnection.fetchInitialState") { await fetchInitialState(client: ctx.client, stateHolder: ctx.stateHolder) }
         }
         return speaker

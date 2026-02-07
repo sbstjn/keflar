@@ -20,6 +20,41 @@ private final class ConnectionEventBox: @unchecked Sendable {
     func trigger(_ event: ConnectionEvent) { handler?(event) }
 }
 
+/// Holds a weak reference to Speaker so StateRefreshingClient can trigger state refresh after setData without capturing Speaker in init. Set by SpeakerConnection after creating the Speaker.
+final class RefresherBox: @unchecked Sendable {
+    weak var speaker: Speaker?
+}
+
+/// Wraps a SpeakerClientProtocol and invokes state refresh on the RefresherBox's speaker after every successful setDataWithBody. Ensures UI state updates after any API write without per-handler calls.
+final class StateRefreshingClient: SpeakerClientProtocol, @unchecked Sendable {
+    private let wrapped: any SpeakerClientProtocol
+    private let refresher: RefresherBox
+
+    init(wrapping wrapped: any SpeakerClientProtocol, refresher: RefresherBox) {
+        self.wrapped = wrapped
+        self.refresher = refresher
+    }
+
+    func getData(path: String) async throws -> [String: Any] { try await wrapped.getData(path: path) }
+
+    func setDataWithBody(path: String, role: String, value: SendableBody) async throws {
+        try await wrapped.setDataWithBody(path: path, role: role, value: value)
+        Task { @MainActor in await refresher.speaker?.refreshStateAfterControlAction() }
+    }
+
+    func getRows(path: String, from: Int, to: Int) async throws -> [String: Any] {
+        try await wrapped.getRows(path: path, from: from, to: to)
+    }
+
+    func modifyQueue() async throws -> String { try await wrapped.modifyQueue() }
+
+    func pollQueue(queueId: String, timeout: TimeInterval) async throws -> [[String: Any]] {
+        try await wrapped.pollQueue(queueId: queueId, timeout: timeout)
+    }
+
+    func getRequestCounts() async -> RequestCounts? { await wrapped.getRequestCounts() }
+}
+
 // MARK: - Speaker (connected instance)
 
 /// Connected speaker that shadows the device; state is updated from initial getData and from the event stream.
@@ -60,10 +95,10 @@ public final class Speaker: ObservableObject {
     ) {
         self.model = model
         self.version = version
-        self.client = client
         let holder = stateHolder ?? SpeakerStateHolder()
         self.stateHolder = holder
         self.state = holder.state
+        self.client = client
         let graceMinFailures = connectionPolicy?.graceMinFailures ?? connectionGraceMinFailures
         let graceDuration = connectionPolicy?.graceDuration ?? connectionGraceDuration
         let connectionEventBox = ConnectionEventBox()
@@ -412,6 +447,38 @@ public final class Speaker: ObservableObject {
         let data = try await client.getData(path: playerDataPath)
         StateReducer.applyToState(path: playerDataPath, dict: data, state: &stateHolder.state)
         stateHolder.notifyStateChanged()
+    }
+
+    /// After a control/setData action, refetch player data, playTime, volume, mute and playMode from the device and push to state so the UI updates even when the event stream is not delivering. Called centrally from StateRefreshingClient after every successful setDataWithBody.
+    func refreshStateAfterControlAction() async {
+        async let d = client.getData(path: playerDataPath)
+        async let p = client.getData(path: playTimePath)
+        async let v = client.getData(path: "player:volume")
+        async let m = client.getData(path: "settings:/mediaPlayer/mute")
+        async let pm = client.getData(path: playModePath)
+        let data = try? await d
+        let playTime = try? await p
+        let volume = try? await v
+        let mute = try? await m
+        let playMode = try? await pm
+        if let data {
+            StateReducer.applyToState(path: playerDataPath, dict: data, state: &stateHolder.state)
+        }
+        if let playTime {
+            StateReducer.applyToState(path: playTimePath, dict: playTime, state: &stateHolder.state)
+        }
+        if let volume {
+            StateReducer.applyToState(path: "player:volume", dict: volume, state: &stateHolder.state)
+        }
+        if let mute {
+            StateReducer.applyToState(path: "settings:/mediaPlayer/mute", dict: mute, state: &stateHolder.state)
+        }
+        if let playMode {
+            StateReducer.applyToState(path: playModePath, dict: playMode, state: &stateHolder.state)
+        }
+        if data != nil || playTime != nil || volume != nil || mute != nil || playMode != nil {
+            stateHolder.notifyStateChanged()
+        }
     }
 
     /// Content play context path for the current track (from shadow state). Nil when nothing is playing or track has no context (e.g. non-streaming source). Use with `fetchPlayContextActions()` to get like/favorite actions.
