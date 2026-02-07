@@ -112,7 +112,7 @@ struct SpeakerTests {
         #expect(songAfterSecondSkip != songAfterFirstSkip, "with shuffle, second skip should not land on the same track as deterministic next (was \(songAfterFirstSkip ?? "nil"))")
 
         if let counts = await speaker.getRequestCounts() {
-            print("[\(name)] HTTP requests: getData=\(counts.getData) setData=\(counts.setData) setDataWithBody=\(counts.setDataWithBody) getRows=\(counts.getRows) modifyQueue=\(counts.modifyQueue) pollQueue=\(counts.pollQueue) total=\(counts.total)")
+            print("[\(name)] HTTP requests: getData=\(counts.getData) setDataWithBody=\(counts.setDataWithBody) getRows=\(counts.getRows) modifyQueue=\(counts.modifyQueue) pollQueue=\(counts.pollQueue) total=\(counts.total)")
         }
         print("[\(name)] Done: first song, scrub 10s, wait 5s, skip (no shuffle), shuffle on, skip (shuffle)")
     }

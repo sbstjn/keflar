@@ -31,6 +31,7 @@ public enum ConnectionState: Sendable {
 }
 
 /// Optional connection grace-period policy; when nil, library defaults are used.
+/// Typical range: 3–5 failures over 10–15 seconds to tolerate brief hiccups without delaying disconnect on real network loss.
 public struct ConnectionPolicy: Sendable {
     public var graceMinFailures: Int
     public var graceDuration: TimeInterval

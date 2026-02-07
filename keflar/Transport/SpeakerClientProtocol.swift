@@ -5,17 +5,15 @@ import Foundation
 /// Counts of HTTP requests by endpoint type. Use for analysis when connecting with `countRequests: true`.
 public struct RequestCounts: Sendable {
     public var getData: Int
-    public var setData: Int
     public var setDataWithBody: Int
     public var getRows: Int
     public var modifyQueue: Int
     public var pollQueue: Int
 
-    public var total: Int { getData + setData + setDataWithBody + getRows + modifyQueue + pollQueue }
+    public var total: Int { getData + setDataWithBody + getRows + modifyQueue + pollQueue }
 
-    public init(getData: Int = 0, setData: Int = 0, setDataWithBody: Int = 0, getRows: Int = 0, modifyQueue: Int = 0, pollQueue: Int = 0) {
+    public init(getData: Int = 0, setDataWithBody: Int = 0, getRows: Int = 0, modifyQueue: Int = 0, pollQueue: Int = 0) {
         self.getData = getData
-        self.setData = setData
         self.setDataWithBody = setDataWithBody
         self.getRows = getRows
         self.modifyQueue = modifyQueue

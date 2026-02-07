@@ -1,6 +1,6 @@
 import Foundation
 
-/// Wraps a client and counts each HTTP request by type (getData, setData, setDataWithBody, getRows, modifyQueue, pollQueue).
+/// Wraps a client and counts each HTTP request by type (getData, setDataWithBody, getRows, modifyQueue, pollQueue).
 /// Use when connecting with `countRequests: true` to read counts via `Speaker.getRequestCounts()` for testing or debugging request volume.
 struct CountingSpeakerClient: SpeakerClientProtocol, Sendable {
     private let wrapped: any SpeakerClientProtocol
@@ -41,14 +41,12 @@ struct CountingSpeakerClient: SpeakerClientProtocol, Sendable {
 
 private actor RequestCounter {
     var getDataCount = 0
-    var setDataCount = 0
     var setDataWithBodyCount = 0
     var getRowsCount = 0
     var modifyQueueCount = 0
     var pollQueueCount = 0
 
     func incrementGetData() { getDataCount += 1 }
-    func incrementSetData() { setDataCount += 1 }
     func incrementSetDataWithBody() { setDataWithBodyCount += 1 }
     func incrementGetRows() { getRowsCount += 1 }
     func incrementModifyQueue() { modifyQueueCount += 1 }
@@ -57,7 +55,6 @@ private actor RequestCounter {
     func counts() -> RequestCounts {
         RequestCounts(
             getData: getDataCount,
-            setData: setDataCount,
             setDataWithBody: setDataWithBodyCount,
             getRows: getRowsCount,
             modifyQueue: modifyQueueCount,
