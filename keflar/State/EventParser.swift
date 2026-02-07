@@ -5,12 +5,14 @@ enum EventParser {
     private typealias Apply = (inout SpeakerEvents, [String: Any]) -> Void
 
     private static func extractPlayerDataFields(
-        playerState: inout String?,
+        playerState: inout PlayerState?,
         duration: inout Int?,
         currentQueueIndex: inout Int?,
         from dict: [String: Any]
     ) {
-        playerState = dict["state"] as? String
+        if let stateString = dict["state"] as? String {
+            playerState = PlayerState(rawValue: stateString)
+        }
         duration = parseDuration(from: dict)
         currentQueueIndex = parseQueueIndex(from: dict)
     }
@@ -27,12 +29,16 @@ enum EventParser {
 
     /// Path→event apply; immutable config used from single event pipeline. nonisolated(unsafe) until typed Decodable replaces [String: Any].
     private static nonisolated(unsafe) let pathApply: [(String, Apply)] = [
-        (APIPath.physicalSource.path, { e, d in e.source = d["kefPhysicalSource"] as? String }),
+        (APIPath.physicalSource.path, { e, d in
+            if let sourceString = d["kefPhysicalSource"] as? String {
+                e.source = PhysicalSource(rawValue: sourceString)
+            }
+        }),
         (APIPath.volume.path, { e, d in e.volume = d["i32_"] as? Int }),
-        (APIPath.speakerStatus.path, { e, d in e.speakerStatus = d["kefSpeakerStatus"] as? String }),
         (APIPath.deviceName.path, { e, d in e.deviceName = d["string_"] as? String }),
-        (APIPath.mute.path, { e, d in e.mute = d["bool_"] as? Bool }),
-        (APIPath.macAddress.path, { _, _ in }),
+        (APIPath.mute.path, { e, d in
+            e.mute = (d["bool_"] as? Bool) ?? (d["bool_"] as? Int).map { $0 != 0 } ?? (d["i32_"] as? Int).map { $0 != 0 }
+        }),
         (playModePath.path, { e, d in extractPlayModeFields(shuffle: &e.shuffle, repeatMode: &e.repeatMode, from: d) }),
         (playerDataPath.path, { e, d in
             extractPlayerDataFields(playerState: &e.playerState, duration: &e.duration, currentQueueIndex: &e.currentQueueIndex, from: d)

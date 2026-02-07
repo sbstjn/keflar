@@ -23,14 +23,14 @@ actor SpeakerStateHolder {
 
     /// Apply a single path's dict to state (StateApplier) and push. Use for getData-style updates.
     func updateState(path: String, dict: SendableDict) {
-        StateApplier.applyToState(path: path, dict: dict.value, state: &state)
+        state = StateApplier.applyToState(path: path, dict: dict.value, state: state)
         continuation?.yield(state)
     }
 
     /// Apply multiple path updates and yield once. Use for initial state fetch to avoid N UI re-renders.
     func updateStateBatch(pathDicts: [(String, SendableDict)]) {
         for (path, dict) in pathDicts {
-            StateApplier.applyToState(path: path, dict: dict.value, state: &state)
+            state = StateApplier.applyToState(path: path, dict: dict.value, state: state)
         }
         continuation?.yield(state)
     }

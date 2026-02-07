@@ -80,9 +80,7 @@ actor EventPollState {
             }
             let events = EventParser.parseEvents(pathToItemValue: pathToItemValue)
             await stateHolder.updateState { state in
-                var nextState = state
-                mergeEvents(events, into: &nextState)
-                return nextState
+                mergeEvents(events, into: state)
             }
             return events
         } catch {

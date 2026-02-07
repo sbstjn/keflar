@@ -22,16 +22,36 @@ public struct SpeakerProbe: Sendable {
     }
 }
 
-/// Entry point; connect() returns a Speaker that shadows the device.
-public struct SpeakerConnection {
-    public var host: String
-
-    public init(host: String) {
-        self.host = host
+/// Configuration for connecting to a speaker.
+public struct ConnectionConfig: Sendable {
+    /// If true (default), waits for initial getData (parallel requests) so the returned Speaker has fresh state immediately.
+    public var awaitInitialState: Bool
+    /// If true, wraps the client in a counter so you can read HTTP request counts via `speaker.getRequestCounts()`.
+    public var requestCounting: Bool
+    /// Grace period for connection loss; when nil, library defaults are used.
+    public var policy: ConnectionPolicy?
+    /// Request timeout (seconds) per request during connection. When nil, default URLSession timeouts are used.
+    public var timeout: TimeInterval?
+    
+    public init(
+        awaitInitialState: Bool = true,
+        requestCounting: Bool = false,
+        policy: ConnectionPolicy? = nil,
+        timeout: TimeInterval? = nil
+    ) {
+        self.awaitInitialState = awaitInitialState
+        self.requestCounting = requestCounting
+        self.policy = policy
+        self.timeout = timeout
     }
+    
+    public static let `default` = ConnectionConfig()
+}
 
-    /// Probe the speaker; returns SpeakerProbe if reachable (releasetext + optional deviceName; no queue subscription or state).
-    public func probe() async throws -> SpeakerProbe {
+/// Unified entry point for keflar library. Provides static methods for probing and connecting to KEF speakers.
+public enum Keflar {
+    /// Probe a speaker at the given host; returns SpeakerProbe if reachable (releasetext + optional deviceName; no queue subscription or state).
+    public static func probe(host: String) async throws -> SpeakerProbe {
         let client = DefaultSpeakerClient(host: host, session: .shared)
         async let releasetextTask = client.getData(path: APIPath.releasetext.path)
         async let deviceNameTask = client.getData(path: APIPath.deviceName.path)
@@ -49,28 +69,18 @@ public struct SpeakerConnection {
         return SpeakerProbe(host: host, model: model, version: version, name: name)
     }
 
-    /// Connect to the speaker; returns the connected Speaker instance.
-    /// - Parameters:
-    ///   - awaitInitialState: If true (default), waits for initial getData (parallel requests) so the returned Speaker has fresh state immediately; if false, returns immediately and state fills in as fetchInitialState completes.
-    ///   - countRequests: If true, wraps the client in a counter so you can read HTTP request counts via `speaker.getRequestCounts()`.
-    ///   - connectionPolicy: Optional grace period for connection loss; when nil, library defaults are used.
-    ///   - connectTimeout: Optional request timeout (seconds) per request during connection (releasetext, modifyQueue, initial state). When nil, default URLSession timeouts are used. For reconnect use ≥ 3 s on LAN.
-    public func connect(
-        awaitInitialState: Bool = true,
-        countRequests: Bool = false,
-        connectionPolicy: ConnectionPolicy? = nil,
-        connectTimeout: TimeInterval? = nil
-    ) async throws -> Speaker {
+    /// Connect to a speaker at the given host; returns the connected Speaker instance.
+    public static func connect(to host: String, config: ConnectionConfig = .default) async throws -> Speaker {
         let session: URLSession
-        if let connectTimeout {
-            let config = URLSessionConfiguration.default
-            config.timeoutIntervalForRequest = connectTimeout
-            session = URLSession(configuration: config)
+        if let connectTimeout = config.timeout {
+            let urlConfig = URLSessionConfiguration.default
+            urlConfig.timeoutIntervalForRequest = connectTimeout
+            session = URLSession(configuration: urlConfig)
         } else {
             session = .shared
         }
-        let base = DefaultSpeakerClient(host: host, session: session, requestTimeout: connectTimeout)
-        let client: any SpeakerClientProtocol = countRequests ? CountingSpeakerClient(wrapping: base) : base
+        let base = DefaultSpeakerClient(host: host, session: session, requestTimeout: config.timeout)
+        let client: any SpeakerClientProtocol = config.requestCounting ? CountingSpeakerClient(wrapping: base) : base
         let refresherBox = RefresherBox()
         let refreshingClient = StateRefreshingClient(wrapping: client, refresher: refresherBox)
         let first = try await refreshingClient.getData(path: APIPath.releasetext.path)
@@ -103,17 +113,39 @@ public struct SpeakerConnection {
                 queueId: queueId,
                 stateHolder: stateHolder,
                 stateStream: stateStream,
-                connectionPolicy: connectionPolicy
+                connectionPolicy: config.policy
             )
         }
         refresherBox.speaker = speaker
         Logger.keflar.info("Connected to \(model) v\(version)")
-        if awaitInitialState {
+        if config.awaitInitialState {
             await fetchInitialState(client: refreshingClient, stateHolder: stateHolder)
         } else {
             let ctx = SendableFetchContext(client: refreshingClient, stateHolder: stateHolder)
             Task(name: "SpeakerConnection.fetchInitialState") { await fetchInitialState(client: ctx.client, stateHolder: ctx.stateHolder) }
         }
         return speaker
+    }
+}
+
+/// Entry point; connect() returns a Speaker that shadows the device.
+/// @deprecated Use `Keflar.connect(to:config:)` and `Keflar.probe(host:)` instead.
+public struct SpeakerConnection {
+    public var host: String
+
+    public init(host: String) {
+        self.host = host
+    }
+
+    /// Probe the speaker; returns SpeakerProbe if reachable (releasetext + optional deviceName; no queue subscription or state).
+    /// @deprecated Use `Keflar.probe(host:)` instead.
+    public func probe() async throws -> SpeakerProbe {
+        try await Keflar.probe(host: host)
+    }
+
+    /// Connect to the speaker; returns the connected Speaker instance.
+    /// @deprecated Use `Keflar.connect(to:config:)` instead.
+    public func connect(config: ConnectionConfig = .default) async throws -> Speaker {
+        try await Keflar.connect(to: host, config: config)
     }
 }

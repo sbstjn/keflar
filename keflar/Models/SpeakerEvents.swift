@@ -3,13 +3,12 @@ import Foundation
 /// Delta: one batch from the event stream. Internal; not part of the public API.
 /// Marked `@unchecked Sendable` so it can be passed into actor updateState closures.
 struct SpeakerEvents: @unchecked Sendable {
-    var source: String?
+    var source: PhysicalSource?
     var volume: Int?
     var mute: Bool?
-    var speakerStatus: String?
     var deviceName: String?
-    /// Player state: `"playing"`, `"paused"`, etc. (`player:player/data`).
-    var playerState: String?
+    /// Player state: `.playing`, `.paused`, etc. (`player:player/data`).
+    var playerState: PlayerState?
     /// Playback position in ms (`player:player/data/playTime`).
     var playTime: Int?
     /// Track duration in ms (`player:player/data` → `status.duration`).
@@ -23,12 +22,11 @@ struct SpeakerEvents: @unchecked Sendable {
     var other: [String: Any]
 
     init(
-        source: String? = nil,
+        source: PhysicalSource? = nil,
         volume: Int? = nil,
         mute: Bool? = nil,
-        speakerStatus: String? = nil,
         deviceName: String? = nil,
-        playerState: String? = nil,
+        playerState: PlayerState? = nil,
         playTime: Int? = nil,
         duration: Int? = nil,
         currentQueueIndex: Int? = nil,
@@ -39,7 +37,6 @@ struct SpeakerEvents: @unchecked Sendable {
         self.source = source
         self.volume = volume
         self.mute = mute
-        self.speakerStatus = speakerStatus
         self.deviceName = deviceName
         self.playerState = playerState
         self.playTime = playTime

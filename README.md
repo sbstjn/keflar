@@ -5,13 +5,14 @@
 [![Platforms](https://img.shields.io/badge/Platforms-macOS%20%7C%20iOS%20%7C%20tvOS%20%7C%20visionOS-blue.svg)](https://github.com/sbstjn/keflar)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Opinionated Swift library for controlling [KEF](https://www.kef.com) speakers on your local network. Create a reactive SwiftUI shadow of your speaker via `Speaker` (`ObservableObject` with `@Published` state).
+Opinionated Swift library for controlling [KEF](https://www.kef.com) speakers on your local network. Create a reactive SwiftUI shadow of your speaker via `Speaker` (`@Observable` with live state updates).
 
 ### Public API
 
 - **SpeakerConnection** — Entry point: `probe()` fetches basic speaker info (host, model, version, name) for discovery or overviews; `connect()` establishes full connectivity with live state updates via the event stream.
 - **Speaker** — Main API: transport (play, pause, seek, volume, mute), source, shuffle/repeat, Tidal playlists, play context (like/favorite), play queue.
 - **SpeakerState** — Shadow state (observe for updates); includes volume, mute, playerState, playTime, currentSong metadata, shuffle, repeatMode.
+- **ConnectionEvent**, **connectionEvents** — Connection health stream: `for await event in speaker.connectionEvents` (reconnecting, recovered, disconnected).
 - **CurrentSong**, **AudioCodecInfo** — Playback info from shadow state (no extra requests).
 - **PlayContextActions**, **PlayQueueResult** — Like/favorite actions and queue fetch results.
 - **PhysicalSource**, **RepeatMode** — Enums for source and repeat control.
@@ -65,17 +66,17 @@ let queue = try await speaker.fetchPlayQueue(from: 0, to: 50)
 
 ### SwiftUI Integration
 
-`Speaker` conforms to `ObservableObject` with `@Published` state, enabling reactive SwiftUI views that automatically update when speaker state changes.
+`Speaker` is `@Observable`; SwiftUI views that hold a `Speaker` instance automatically update when its state changes.
 
 ```swift
 import SwiftUI
 import keflar
 
 @MainActor
-class SpeakerViewModel: ObservableObject {
-    @Published var speaker: Speaker?
-    @Published var isConnecting = false
-    @Published var error: Error?
+class SpeakerViewModel {
+    var speaker: Speaker?
+    var isConnecting = false
+    var error: Error?
     
     func connect(host: String) async {
         isConnecting = true
@@ -90,12 +91,12 @@ class SpeakerViewModel: ObservableObject {
 }
 
 struct PlayerView: View {
-    @StateObject private var viewModel = SpeakerViewModel()
+    @State private var viewModel = SpeakerViewModel()
     
     var body: some View {
         VStack(spacing: 20) {
             if let speaker = viewModel.speaker {
-                // State automatically updates when speaker publishes changes
+                // State automatically updates when speaker state changes
                 Text(speaker.state.deviceName ?? "Unknown Speaker")
                     .font(.headline)
                 
@@ -148,7 +149,7 @@ struct PlayerView: View {
 }
 ```
 
-The library subscribes to the device event queue and long-polls automatically; events are merged into `state` internally. Observe `speaker.state` or `speaker.$state` for updates; no need to consume an event stream from the app.
+The library subscribes to the device event queue and long-polls automatically; events are merged into `state` internally. Observe `speaker.state` for updates. For connection health (reconnecting, disconnected), use `for await event in speaker.connectionEvents`.
 
 ## License
 

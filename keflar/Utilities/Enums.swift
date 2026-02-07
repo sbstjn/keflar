@@ -96,6 +96,23 @@ public enum ConnectionEvent: Sendable {
     case recovered
 }
 
+/// Player state from the speaker's media player.
+///
+/// Represents the current playback status of the speaker.
+@frozen public enum PlayerState: String, Sendable {
+    /// Media is currently playing.
+    case playing
+    /// Media is paused.
+    case paused
+    /// Media is stopped or no media loaded.
+    case stopped
+    
+    /// Whether the player is actively playing media.
+    public var isPlaying: Bool {
+        self == .playing
+    }
+}
+
 /// Type-safe physical source / power state for the speaker.
 /// 
 /// Use with `Speaker.setSource(_:)` to switch inputs or power state.

@@ -1,44 +1,38 @@
 import Foundation
 import os
 
-private typealias MergeApplier = (SpeakerEvents, inout SpeakerState) -> Void
-
 private let mergeLog = Logger(subsystem: "com.sbstjn.keflar", category: "State")
 
-/// Known physical source raw values (wifi, bluetooth, tv, optic, coaxial, analog, standby, powerOn) for logging.
-private let knownSourceRawValues: Set<String> = Set(PhysicalSource.allCases.map(\.rawValue))
+/// Known physical sources for logging.
+private let knownSources: Set<PhysicalSource> = Set(PhysicalSource.allCases)
 
-/// Single source of truth for which event fields are merged into state. Add new fields here only.
-/// Safe: immutable config; mergeEvents is called by a single consumer (event poll loop).
-private nonisolated(unsafe) let mergeAppliers: [MergeApplier] = [
-    { batch, state in
-        if let v = batch.source {
-            state.source = v
-            let known = knownSourceRawValues.contains(v)
-            mergeLog.info("mergeEvents source=\(v) known=\(known)")
-        }
-    },
-    { batch, state in if let v = batch.volume { state.volume = v } },
-    { batch, state in if let v = batch.mute { state.mute = v } },
-    { batch, state in if let v = batch.speakerStatus { state.speakerStatus = v } },
-    { batch, state in if let v = batch.deviceName { state.deviceName = v } },
-    { batch, state in if let v = batch.playerState { state.playerState = v } },
-    { batch, state in if let v = batch.playTime { state.playTime = v } },
-    { batch, state in if let v = batch.duration { state.duration = v } },
-    { batch, state in if let v = batch.currentQueueIndex { state.currentQueueIndex = v } },
-    { batch, state in if let v = batch.shuffle { state.shuffle = v } },
-    { batch, state in if let v = batch.repeatMode { state.repeatMode = v } },
-]
-
-/// Merge event batch into accumulated speaker state.
-func mergeEvents(_ batch: SpeakerEvents, into state: inout SpeakerState) {
+/// Merge event batch into accumulated speaker state, returning new state.
+func mergeEvents(_ batch: SpeakerEvents, into state: SpeakerState) -> SpeakerState {
     let oldSource = state.source
-    for apply in mergeAppliers { apply(batch, &state) }
+    
+    var newTypedData = state.typedData
     for (k, v) in batch.other {
-        state.typedData[APIPath.from(k)] = SendableDict(value: (v as? [String: Any]) ?? [:])
+        newTypedData[APIPath.from(k)] = SendableDict(value: (v as? [String: Any]) ?? [:])
     }
-    if let newSource = state.source, newSource != oldSource {
-        let known = knownSourceRawValues.contains(newSource)
-        mergeLog.info("source switched from \(oldSource ?? "nil") to \(newSource) known=\(known)")
+    
+    let newState = SpeakerState(
+        source: batch.source ?? state.source,
+        volume: batch.volume ?? state.volume,
+        mute: batch.mute ?? state.mute,
+        deviceName: batch.deviceName ?? state.deviceName,
+        playerState: batch.playerState ?? state.playerState,
+        playTime: batch.playTime ?? state.playTime,
+        duration: batch.duration ?? state.duration,
+        currentQueueIndex: batch.currentQueueIndex ?? state.currentQueueIndex,
+        shuffle: batch.shuffle ?? state.shuffle,
+        repeatMode: batch.repeatMode ?? state.repeatMode,
+        typedData: newTypedData
+    )
+    
+    if let newSource = batch.source, newSource != oldSource {
+        let known = knownSources.contains(newSource)
+        mergeLog.info("source switched from \(oldSource?.rawValue ?? "nil") to \(newSource.rawValue) known=\(known)")
     }
+    
+    return newState
 }

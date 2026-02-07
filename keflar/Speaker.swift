@@ -295,8 +295,11 @@ public final class Speaker {
             guard let self else { return }
             for await newState in stateStream {
                 self.state = newState
+                
+                // Update slices to reduce SwiftUI re-render scope
                 let v = VolumeState(volume: newState.volume, mute: newState.mute)
                 if v != self.volumeState { self.volumeState = v }
+                
                 let p = PlaybackStateSlice(
                     playerState: newState.playerState,
                     playTime: newState.playTime,
@@ -411,7 +414,7 @@ public final class Speaker {
 
     /// Whether the speaker is currently playing. Uses shadow state (`player:player/data` fetched on connect and from event stream).
     public func isPlaying() -> Bool {
-        state.playerState == "playing"
+        state.playerState == .playing
     }
 
     /// Shuffle on/off. Uses shadow state (settings:/mediaPlayer/playMode). Nil until first getData/event.

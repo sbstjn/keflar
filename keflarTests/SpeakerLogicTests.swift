@@ -20,7 +20,7 @@ struct SpeakerLogicTests {
     @Test func stateApplierApplyPhysicalSource() {
         var state = SpeakerState()
         StateApplier.applyToState(path: "settings:/kef/play/physicalSource", dict: ["kefPhysicalSource": "wifi"], state: &state)
-        #expect(state.source == "wifi")
+        #expect(state.source == .wifi)
     }
 
     @Test func stateApplierApplyPlayerDataPath() {
@@ -31,7 +31,7 @@ struct SpeakerLogicTests {
             "trackRoles": ["path": "airable:https://x.airable.io/id/tidal/track/1", "value": ["i32_": 8] as [String: Any]] as [String: Any],
         ]
         StateApplier.applyToState(path: "player:player/data", dict: dict, state: &state)
-        #expect(state.playerState == "playing")
+        #expect(state.playerState == .playing)
         #expect(state.duration == 158226)
         #expect(state.currentQueueIndex == 8)
         #expect(state.typedData[.playerData]?.value != nil)
@@ -102,7 +102,7 @@ struct SpeakerLogicTests {
             ] as [String: Any],
         ]
         let events = EventParser.parseEvents(pathToItemValue: pathToItemValue)
-        #expect(events.playerState == "playing")
+        #expect(events.playerState == .playing)
         #expect(events.duration == 200000)
         #expect(events.currentQueueIndex == 3)
     }
@@ -112,10 +112,10 @@ struct SpeakerLogicTests {
     @Test func mergeUpdatesState() {
         var state = SpeakerState()
         state.volume = 10
-        let batch = SpeakerEvents(source: "wifi", volume: 80)
+        let batch = SpeakerEvents(source: .wifi, volume: 80)
         mergeEvents(batch, into: &state)
         #expect(state.volume == 80)
-        #expect(state.source == "wifi")
+        #expect(state.source == .wifi)
     }
 
     @Test func mergeLeavesUnsetFieldsUnchanged() {
