@@ -68,6 +68,40 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
         String(data: data.prefix(maxErrorPreviewLength), encoding: .utf8) ?? ""
     }
 
+    private func transportFailureReason(from error: Error) -> TransportFailureReason? {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .timedOut: return .timeout
+            case .notConnectedToInternet: return .notConnectedToInternet
+            case .cannotFindHost: return .cannotFindHost
+            case .networkConnectionLost: return .connectionLost
+            default: return .other(description: error.localizedDescription)
+            }
+        }
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain {
+            switch ns.code {
+            case NSURLErrorTimedOut: return .timeout
+            case NSURLErrorNotConnectedToInternet: return .notConnectedToInternet
+            case NSURLErrorCannotFindHost: return .cannotFindHost
+            case NSURLErrorNetworkConnectionLost: return .connectionLost
+            default: return .other(description: error.localizedDescription)
+            }
+        }
+        return nil
+    }
+
+    private func dataForRequest(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        do {
+            return try await session.data(for: request)
+        } catch {
+            if let reason = transportFailureReason(from: error) {
+                throw SpeakerConnectError.connectionUnavailable(reason)
+            }
+            throw error
+        }
+    }
+
     private func validatePath(_ path: String) throws {
         if path.isEmpty {
             throw SpeakerConnectError.invalidSource("path must not be empty")
@@ -95,7 +129,7 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
             throw SpeakerConnectError.invalidURL
         }
         let request = makeRequest(url: url, timeout: defaultRequestTimeout)
-        let (data, _) = try await session.data(for: request)
+        let (data, _) = try await dataForRequest(request)
         let json: Any
         do {
             json = try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)
@@ -119,7 +153,7 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
             throw SpeakerConnectError.invalidSource("setData body must not exceed \(maxRequestBodySize) bytes")
         }
         let request = makeRequest(url: url, method: "POST", body: bodyData, timeout: longRequestTimeout)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await dataForRequest(request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw SpeakerConnectError.invalidJSON(responsePreview: "setData status \(http.statusCode); body: \(errorPreview(from: data))")
         }
@@ -137,7 +171,7 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
             throw SpeakerConnectError.invalidURL
         }
         let request = makeRequest(url: url, timeout: longRequestTimeout)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await dataForRequest(request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw SpeakerConnectError.invalidJSON(responsePreview: "getRows status \(http.statusCode); body: \(errorPreview(from: data))")
         }
@@ -159,7 +193,7 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
             throw SpeakerConnectError.invalidResponseStructure
         }
         let request = makeRequest(url: url, method: "POST", body: bodyData, timeout: longRequestTimeout)
-        let (data, _) = try await session.data(for: request)
+        let (data, _) = try await dataForRequest(request)
         let preview = errorPreview(from: data)
         let json: Any
         do {
@@ -181,7 +215,7 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
             throw SpeakerConnectError.invalidURL
         }
         let request = makeRequest(url: url, timeout: timeout + 0.5)
-        let (data, _) = try await session.data(for: request)
+        let (data, _) = try await dataForRequest(request)
         guard let json = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             throw SpeakerConnectError.invalidResponseStructure
         }

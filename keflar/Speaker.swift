@@ -33,6 +33,9 @@ public final class Speaker: ObservableObject {
     /// Cached like/favorite actions for the current track; refetched when track changes and after setLiked. Nil when idle or no context.
     @Published public private(set) var playContextActions: PlayContextActions?
 
+    /// Event-stream connection health. Use for "Reconnecting…" or routing to device picker when `.disconnected`.
+    @Published public private(set) var connectionState: ConnectionState = .connected
+
     private let client: any SpeakerClientProtocol
     private let stateHolder: SpeakerStateHolder
     private let pollState: EventPollState
@@ -46,7 +49,8 @@ public final class Speaker: ObservableObject {
         client: any SpeakerClientProtocol,
         queueId: String?,
         stateHolder: SpeakerStateHolder? = nil,
-        pollTimeout: TimeInterval = defaultPollTimeout
+        pollTimeout: TimeInterval = defaultPollTimeout,
+        connectionPolicy: ConnectionPolicy? = nil
     ) {
         self.model = model
         self.version = version
@@ -54,7 +58,27 @@ public final class Speaker: ObservableObject {
         let holder = stateHolder ?? SpeakerStateHolder()
         self.stateHolder = holder
         self.state = holder.state
-        self.pollState = EventPollState(client: client, queueId: queueId, pollTimeout: pollTimeout, stateHolder: holder)
+        let graceMinFailures = connectionPolicy?.graceMinFailures ?? connectionGraceMinFailures
+        let graceDuration = connectionPolicy?.graceDuration ?? connectionGraceDuration
+        let onConnectionEvent: @Sendable (ConnectionEvent) -> Void = { [weak self] event in
+            Task { @MainActor in
+                guard let self else { return }
+                switch event {
+                case .reconnecting: self.connectionState = .reconnecting
+                case .disconnected: self.connectionState = .disconnected
+                case .recovered: self.connectionState = .connected
+                }
+            }
+        }
+        self.pollState = EventPollState(
+            client: client,
+            queueId: queueId,
+            pollTimeout: pollTimeout,
+            stateHolder: holder,
+            graceMinFailures: graceMinFailures,
+            graceDuration: graceDuration,
+            onConnectionEvent: onConnectionEvent
+        )
         self.events = AsyncStream(unfolding: { [pollState] in
             await pollState.pollOnce()
         })

@@ -52,7 +52,8 @@ public struct SpeakerConnection {
     /// - Parameters:
     ///   - awaitInitialState: If true (default), waits for initial getData (parallel requests) so the returned Speaker has fresh state immediately; avoids waiting for the event long-poll (slower). If false, returns immediately and state fills in as fetchInitialState completes in the background.
     ///   - countRequests: If true, wraps the client in a counter so you can read HTTP request counts via `speaker.getRequestCounts()`.
-    public func connect(awaitInitialState: Bool = true, countRequests: Bool = false) async throws -> Speaker {
+    ///   - connectionPolicy: Optional grace period for connection loss; when nil, library defaults are used.
+    public func connect(awaitInitialState: Bool = true, countRequests: Bool = false, connectionPolicy: ConnectionPolicy? = nil) async throws -> Speaker {
         let base = DefaultSpeakerClient(host: host, session: .shared)
         let client: any SpeakerClientProtocol = countRequests ? CountingSpeakerClient(wrapping: base) : base
         let first = try await client.getData(path: "settings:/releasetext")
@@ -68,7 +69,7 @@ public struct SpeakerConnection {
         let queueId = try await client.modifyQueue()
         let stateHolder = SpeakerStateHolder()
         let speaker = await MainActor.run {
-            Speaker(model: model, version: version, client: client, queueId: queueId, stateHolder: stateHolder)
+            Speaker(model: model, version: version, client: client, queueId: queueId, stateHolder: stateHolder, connectionPolicy: connectionPolicy)
         }
         if awaitInitialState {
             await fetchInitialState(client: client, stateHolder: stateHolder)

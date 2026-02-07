@@ -10,6 +10,42 @@ public enum SpeakerConnectError: Error {
     case invalidJSON(responsePreview: String)
     /// Invalid source, path, or parameter; includes error message.
     case invalidSource(String)
+    /// Network/transport failure (timeout, no connectivity, host unreachable).
+    case connectionUnavailable(TransportFailureReason)
+}
+
+/// Reason for a transport/connection failure; allows apps to show specific messages.
+public enum TransportFailureReason: Sendable {
+    case timeout
+    case notConnectedToInternet
+    case cannotFindHost
+    case connectionLost
+    case other(description: String)
+}
+
+/// Observable connection health for the event stream. Apps can show "Reconnecting…" or route away when disconnected.
+public enum ConnectionState: Sendable {
+    case connected
+    case reconnecting
+    case disconnected
+}
+
+/// Optional connection grace-period policy; when nil, library defaults are used.
+public struct ConnectionPolicy: Sendable {
+    public var graceMinFailures: Int
+    public var graceDuration: TimeInterval
+
+    public init(graceMinFailures: Int = 3, graceDuration: TimeInterval = 12) {
+        self.graceMinFailures = graceMinFailures
+        self.graceDuration = graceDuration
+    }
+}
+
+/// Internal event from event stream to Speaker; maps to ConnectionState.
+enum ConnectionEvent: Sendable {
+    case reconnecting
+    case disconnected
+    case recovered
 }
 
 /// Type-safe physical source / power state for the speaker.
