@@ -8,12 +8,6 @@ internal let playerControlPath = "player:player/control"
 internal let playQueuePath = "playlists:pq/getitems"
 internal let playModePath = "settings:/mediaPlayer/playMode"
 
-// MARK: - Play Context (Tidal action IDs)
-
-internal let tidalActionFavoriteRemove = "airable://tidal/action/favorite.remove"
-internal let tidalActionFavoriteInsert = "airable://tidal/action/favorite.insert"
-internal let tidalActionPlaylistInsert = "airable://tidal/action/playlist.insert"
-
 // MARK: - Initial State Paths
 
 internal let initialGetDataPaths = [
@@ -40,6 +34,3 @@ internal let connectionGraceMinFailures: Int = 3
 
 /// Minimum duration (seconds) of consecutive failures before declaring connection lost. For local LAN (single app, same room) 6s is enough to avoid false disconnect on brief blips while declaring loss sooner when the speaker is off or WiFi is down.
 internal let connectionGraceDuration: TimeInterval = 6
-
-/// Delay before refetching play context after activate (like/unlike); device may apply asynchronously.
-internal let playContextRefetchDelayAfterActivate: TimeInterval = 0.4

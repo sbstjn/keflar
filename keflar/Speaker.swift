@@ -77,9 +77,6 @@ public final class Speaker {
     /// Accumulated shadow state of the remote device; updated from event batches and initial getData.
     public private(set) var state: SpeakerState
 
-    /// Cached like/favorite actions for the current track; refetched when track changes and after setLiked. Nil when idle or no context.
-    public private(set) var playContextActions: PlayContextActions?
-
     /// Event-stream connection health. Use for "Reconnecting…" or routing to device picker when `.disconnected`.
     public private(set) var connectionState: ConnectionState = .connected
 
@@ -89,7 +86,6 @@ public final class Speaker {
     private let pollState: EventPollState
     private let events: AsyncStream<SpeakerEvents>
     private let eventDriveTaskBox = EventDriveTaskBox()
-    private var lastPlayContextTrackKey: String?
 
     init(
         model: String,
@@ -137,42 +133,11 @@ public final class Speaker {
             }
         }
 
-        // Set up callback to publish state changes on main actor; refetch play context when track changes
         holder.onStateChange = { [weak self] box in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.state = box.value
-                self.refreshPlayContextIfTrackChanged()
             }
-        }
-    }
-
-    /// Compute a key that changes when the current track changes (for play context refetch).
-    private func playContextTrackKey(from state: SpeakerState) -> String {
-        let raw = state.other[playerDataPath] as? [String: Any]
-        let path = raw.flatMap { extractPlayContextPath(from: $0) }
-        let songTitle = raw.flatMap { parseCurrentSong(from: $0).title }
-        return path ?? songTitle ?? "\(state.currentQueueIndex ?? -1)"
-    }
-
-    /// Refetch play context when track key changes; clear when idle.
-    private func refreshPlayContextIfTrackChanged() {
-        let key = playContextTrackKey(from: state)
-        if key == lastPlayContextTrackKey { return }
-        lastPlayContextTrackKey = key
-
-        let raw = state.other[playerDataPath] as? [String: Any]
-        let song = raw.map { parseCurrentSong(from: $0) }
-        let isIdle = (song?.title == nil && song?.artist == nil) && (state.playerState != "playing")
-        if isIdle {
-            playContextActions = nil
-            return
-        }
-
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let actions = try? await self.fetchPlayContextActions()
-            self.playContextActions = actions
         }
     }
 
@@ -446,9 +411,7 @@ public final class Speaker {
         cachedPlayerData.map { parseAudioCodecInfo(from: $0.raw) }
     }
 
-    // MARK: - Play context (like/favorite, current track)
-
-    /// Refresh cached player data from the device (getData player:player/data). Use when shadow state may be stale (e.g. after track change) so currentPlayContextPath and currentSong are up to date.
+    /// Refresh cached player data from the device (getData player:player/data). Use when shadow state may be stale (e.g. after track change) so currentSong and playback state are up to date.
     public func refreshPlayerData() async throws {
         let data = try await client.getData(path: playerDataPath)
         StateReducer.applyToState(path: playerDataPath, dict: data, state: &stateHolder.state)
@@ -485,61 +448,6 @@ public final class Speaker {
         if data != nil || playTime != nil || volume != nil || mute != nil || playMode != nil {
             stateHolder.notifyStateChanged()
         }
-    }
-
-    /// Content play context path for the current track (from shadow state). Nil when nothing is playing or track has no context (e.g. non-streaming source). Use with `fetchPlayContextActions()` to get like/favorite actions.
-    public var currentPlayContextPath: String? {
-        cachedPlayerData.flatMap { extractPlayContextPath(from: $0.raw) }
-    }
-
-    /// Fetch available actions for the current track (like/unlike, add to playlist). Uses `currentPlayContextPath` when present; otherwise derives path from current queue row (getRows playlists:pq/getitems). Returns nil if no context. Throws on network/API errors.
-    public func fetchPlayContextActions() async throws -> PlayContextActions? {
-        var path = currentPlayContextPath
-        if path == nil, let queuePath = try await playContextPathFromCurrentQueueRow() {
-            path = queuePath
-        }
-        guard let path else { return nil }
-        let response = try await client.getRows(path: path, from: 0, to: 9)
-        return parsePlayContextActions(from: response)
-    }
-
-    /// Derive play context path from the current queue item when player data does not include it (e.g. device omits contentPlayContextPath in getData).
-    private func playContextPathFromCurrentQueueRow() async throws -> String? {
-        let index = state.currentQueueIndex ?? 0
-        let response = try await client.getRows(path: playQueuePath, from: index, to: index)
-        let rows = response["rows"] as? [[String: Any]] ?? []
-        guard let first = rows.first else { return nil }
-        return extractPlayContextPathFromQueueRow(first)
-    }
-
-    /// Invoke an action by path (e.g. from `PlayContextActions.favoriteInsertPath`). Uses POST setData with role "activate" and empty value.
-    public func activateAction(path: String) async throws {
-        try await client.setDataWithBody(path: path, role: "activate", value: SendableBody(value: [:]))
-    }
-
-    /// Set liked (favorite) state for the current track. Fetches play context actions if needed; throws if no context or action unavailable (e.g. not Tidal). Updates playContextActions after success.
-    public func setLiked(_ liked: Bool) async throws {
-        let actions = try await fetchPlayContextActions()
-        guard let actions = actions else {
-            throw SpeakerConnectError.invalidSource("no play context for current track")
-        }
-        let path: String?
-        if liked {
-            path = actions.favoriteInsertPath
-        } else {
-            path = actions.favoriteRemovePath
-        }
-        guard let path = path else {
-            throw SpeakerConnectError.invalidSource(liked ? "add to favorites not available" : "remove from favorites not available")
-        }
-        try await activateAction(path: path)
-        try? await Task.sleep(for: .seconds(playContextRefetchDelayAfterActivate))
-        var updated = try? await fetchPlayContextActions()
-        if updated?.isLiked != liked, updated != nil {
-            try? await Task.sleep(for: .seconds(playContextRefetchDelayAfterActivate))
-            updated = try? await fetchPlayContextActions()
-        }
-        playContextActions = updated
     }
 
     // MARK: - Play queue

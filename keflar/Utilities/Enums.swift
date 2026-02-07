@@ -70,11 +70,3 @@ enum ConnectionEvent: Sendable {
     /// Power on (transitions from standby to last active source).
     case powerOn
 }
-
-/// Type of a play-context row from getRows(playContext): direct action or container (sub-context).
-@frozen public enum PlayContextItemType: Sendable {
-    /// Single-step action; invoke with setData(path, role: activate).
-    case action
-    /// Sub-context; use getRows(path) for next level (e.g. playlist list).
-    case container
-}

@@ -8,8 +8,7 @@
 //   - ConnectionState, ConnectionPolicy: Connection observation and optional grace-period configuration
 //   - SpeakerConnectError, TransportFailureReason: Typed errors including connectionUnavailable(timeout, notConnectedToInternet, etc.)
 //   - CurrentSong, AudioCodecInfo: Playback information
-//   - Speaker.playContextActions: Like/favorite state for current track (refetched on track change and after setLiked)
-//   - PlayContextActions, PlayQueueResult: Collections and actions
+//   - PlayQueueResult: Play queue fetch
 //   - PhysicalSource, RepeatMode: Enums for speaker control
 //
 // All public types are automatically available when importing the keflar module.

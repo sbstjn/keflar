@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // Single path→state/events mapping. One table drives both applyToState and parseEvents. Internal for testing.
 enum StateReducer {
@@ -60,9 +61,16 @@ enum StateReducer {
         PathSpec(path: playTimePath, stateApply: { s, d in s.playTime = d["i64_"] as? Int }, eventApply: { e, d in e.playTime = d["i64_"] as? Int }),
     ]
 
+    private static let stateLog = Logger(subsystem: "com.sbstjn.keflar", category: "State")
+
     static func applyToState(path: String, dict: [String: Any], state: inout SpeakerState) {
         if let spec = pathSpecs.first(where: { $0.path == path }) {
             spec.stateApply(&state, dict)
+            if path == "settings:/kef/play/physicalSource" {
+                let applied = state.source ?? "nil"
+                let known = applied != "nil" && PhysicalSource(rawValue: applied) != nil
+                stateLog.info("applyToState physicalSource raw=\(String(describing: dict)) applied source=\(applied) known=\(known)")
+            }
         } else {
             state.other[path] = dict
         }

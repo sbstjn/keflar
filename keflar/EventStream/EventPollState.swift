@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let pollStateLog = Logger(subsystem: "com.sbstjn.keflar", category: "EventPoll")
 
 /// Event polling state machine: manages queue subscription and long-poll lifecycle.
 /// Lifecycle: ensure queue (create or reuse if not stale) → pollQueue → parse events → merge into state → notify. Queue is recreated when missing or older than `queueStaleInterval`.
@@ -72,6 +75,9 @@ final class EventPollState: @unchecked Sendable {
                 guard let path = item["path"] as? String,
                       let itemValue = item["itemValue"] else { continue }
                 pathToItemValue[path] = itemValue
+            }
+            if let physicalPayload = pathToItemValue["settings:/kef/play/physicalSource"] {
+                pollStateLog.info("poll received physicalSource payload=\(String(describing: physicalPayload))")
             }
             let events = StateReducer.parseEvents(pathToItemValue: pathToItemValue)
             mergeEvents(events, into: &stateHolder.state)
