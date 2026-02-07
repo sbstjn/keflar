@@ -159,13 +159,19 @@ public final class Speaker: ObservableObject {
         )
     }
 
-    /// Compute playerPlayMode string from shuffle and repeat. Device has a single field: shuffle and repeat are mutually exclusive in the API (no combined value). Device vocabulary: shuffle, normal, shuffleRepeatOne, shuffleRepeatAll.
+    /// Compute playerPlayMode string from shuffle and repeat. Device has a single field. When shuffle is off the official app sends repeatOne/repeatAll; when shuffle is on it sends shuffleRepeatOne/shuffleRepeatAll (see logs 002-play-pause).
     private func playModeString(shuffle: Bool, repeatMode: RepeatMode) -> String {
-        if shuffle { return "shuffle" }
+        if shuffle {
+            switch repeatMode {
+            case .off: return "shuffle"
+            case .one: return "shuffleRepeatOne"
+            case .all: return "shuffleRepeatAll"
+            }
+        }
         switch repeatMode {
         case .off: return "normal"
-        case .one: return "shuffleRepeatOne"
-        case .all: return "shuffleRepeatAll"
+        case .one: return "repeatOne"
+        case .all: return "repeatAll"
         }
     }
 
