@@ -13,13 +13,13 @@ struct SpeakerLogicTests {
 
     @Test func stateApplierApplyVolume() {
         var state = SpeakerState()
-        StateApplier.applyToState(path: "player:volume", dict: ["i32_": 42], state: &state)
+        state = StateApplier.applyToState(path: "player:volume", dict: ["i32_": 42], state: state)
         #expect(state.volume == 42)
     }
 
     @Test func stateApplierApplyPhysicalSource() {
         var state = SpeakerState()
-        StateApplier.applyToState(path: "settings:/kef/play/physicalSource", dict: ["kefPhysicalSource": "wifi"], state: &state)
+        state = StateApplier.applyToState(path: "settings:/kef/play/physicalSource", dict: ["kefPhysicalSource": "wifi"], state: state)
         #expect(state.source == .wifi)
     }
 
@@ -30,7 +30,7 @@ struct SpeakerLogicTests {
             "status": ["duration": 158226] as [String: Any],
             "trackRoles": ["path": "airable:https://x.airable.io/id/tidal/track/1", "value": ["i32_": 8] as [String: Any]] as [String: Any],
         ]
-        StateApplier.applyToState(path: "player:player/data", dict: dict, state: &state)
+        state = StateApplier.applyToState(path: "player:player/data", dict: dict, state: state)
         #expect(state.playerState == .playing)
         #expect(state.duration == 158226)
         #expect(state.currentQueueIndex == 8)
@@ -39,27 +39,27 @@ struct SpeakerLogicTests {
 
     @Test func stateApplierApplyUnknownPathToOther() {
         var state = SpeakerState()
-        StateApplier.applyToState(path: "custom:path", dict: ["key": "value"], state: &state)
+        state = StateApplier.applyToState(path: "custom:path", dict: ["key": "value"], state: state)
         #expect(state.typedData[.custom("custom:path")]?.value["key"] as? String == "value")
     }
 
     @Test func stateApplierApplyPlayModeShuffle() {
         var state = SpeakerState()
-        StateApplier.applyToState(path: "settings:/mediaPlayer/playMode", dict: ["type": "playerPlayMode", "playerPlayMode": "shuffle"], state: &state)
+        state = StateApplier.applyToState(path: "settings:/mediaPlayer/playMode", dict: ["type": "playerPlayMode", "playerPlayMode": "shuffle"], state: state)
         #expect(state.shuffle == true)
         #expect(state.repeatMode == .off)
     }
 
     @Test func stateApplierApplyPlayModeRepeatOne() {
         var state = SpeakerState()
-        StateApplier.applyToState(path: "settings:/mediaPlayer/playMode", dict: ["type": "playerPlayMode", "playerPlayMode": "repeatOne"], state: &state)
+        state = StateApplier.applyToState(path: "settings:/mediaPlayer/playMode", dict: ["type": "playerPlayMode", "playerPlayMode": "repeatOne"], state: state)
         #expect(state.shuffle == false)
         #expect(state.repeatMode == .one)
     }
 
     @Test func stateApplierApplyPlayModeNormal() {
         var state = SpeakerState()
-        StateApplier.applyToState(path: "settings:/mediaPlayer/playMode", dict: ["type": "playerPlayMode", "playerPlayMode": "normal"], state: &state)
+        state = StateApplier.applyToState(path: "settings:/mediaPlayer/playMode", dict: ["type": "playerPlayMode", "playerPlayMode": "normal"], state: state)
         #expect(state.shuffle == false)
         #expect(state.repeatMode == .off)
     }
@@ -110,10 +110,9 @@ struct SpeakerLogicTests {
     // MARK: - merge
 
     @Test func mergeUpdatesState() {
-        var state = SpeakerState()
-        state.volume = 10
+        var state = SpeakerState(volume: 10)
         let batch = SpeakerEvents(source: .wifi, volume: 80)
-        mergeEvents(batch, into: &state)
+        state = mergeEvents(batch, into: state)
         #expect(state.volume == 80)
         #expect(state.source == .wifi)
     }
@@ -121,7 +120,7 @@ struct SpeakerLogicTests {
     @Test func mergeLeavesUnsetFieldsUnchanged() {
         var state = SpeakerState(volume: 25, deviceName: "Speaker")
         let batch = SpeakerEvents(volume: 50)
-        mergeEvents(batch, into: &state)
+        state = mergeEvents(batch, into: state)
         #expect(state.volume == 50)
         #expect(state.deviceName == "Speaker")
     }
@@ -129,7 +128,7 @@ struct SpeakerLogicTests {
     @Test func mergeUpdatesShuffleAndRepeatMode() {
         var state = SpeakerState()
         let batch = SpeakerEvents(shuffle: true, repeatMode: .all)
-        mergeEvents(batch, into: &state)
+        state = mergeEvents(batch, into: state)
         #expect(state.shuffle == true)
         #expect(state.repeatMode == .all)
     }
@@ -137,7 +136,7 @@ struct SpeakerLogicTests {
     @Test func mergeUpdatesDurationAndCurrentQueueIndex() {
         var state = SpeakerState()
         let batch = SpeakerEvents(duration: 180000, currentQueueIndex: 5)
-        mergeEvents(batch, into: &state)
+        state = mergeEvents(batch, into: state)
         #expect(state.duration == 180000)
         #expect(state.currentQueueIndex == 5)
     }

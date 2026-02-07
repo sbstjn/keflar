@@ -10,7 +10,10 @@ import Testing
 private let defaultHost = "192.168.8.4"
 
 private func connectToSpeaker(host: String = defaultHost, awaitInitialState: Bool = true, countRequests: Bool = false) async throws -> Speaker {
-    try await SpeakerConnection(host: host).connect(awaitInitialState: awaitInitialState, countRequests: countRequests)
+    var config = ConnectionConfig.default
+    config.awaitInitialState = awaitInitialState
+    config.requestCounting = countRequests
+    return try await Keflar.connect(to: host, config: config)
 }
 
 /// Tidal playlist "Sins, Not Tragedies" — https://tidal.com/playlist/a1696225-3c8e-4333-99a1-a77afa213f24
