@@ -14,6 +14,12 @@ private struct SendableStreamBox: @unchecked Sendable {
     let stream: AsyncStream<SpeakerEvents>
 }
 
+/// Holds the connection-event handler so EventPollState callback does not capture Speaker before init completes.
+private final class ConnectionEventBox: @unchecked Sendable {
+    var handler: (@Sendable (ConnectionEvent) -> Void)?
+    func trigger(_ event: ConnectionEvent) { handler?(event) }
+}
+
 // MARK: - Speaker (connected instance)
 
 /// Connected speaker that shadows the device; state is updated from initial getData and from the event stream.
@@ -60,7 +66,26 @@ public final class Speaker: ObservableObject {
         self.state = holder.state
         let graceMinFailures = connectionPolicy?.graceMinFailures ?? connectionGraceMinFailures
         let graceDuration = connectionPolicy?.graceDuration ?? connectionGraceDuration
-        let onConnectionEvent: @Sendable (ConnectionEvent) -> Void = { [weak self] event in
+        let connectionEventBox = ConnectionEventBox()
+        self.pollState = EventPollState(
+            client: client,
+            queueId: queueId,
+            pollTimeout: pollTimeout,
+            stateHolder: holder,
+            graceMinFailures: graceMinFailures,
+            graceDuration: graceDuration,
+            onConnectionEvent: { [weak connectionEventBox] event in
+                Task { @MainActor in connectionEventBox?.trigger(event) }
+            }
+        )
+        self.events = AsyncStream(unfolding: { [pollState] in
+            await pollState.pollOnce()
+        })
+        let streamBox = SendableStreamBox(stream: self.events)
+        self.eventDriveTask = Task(name: "Speaker.eventDrive") {
+            for await _ in streamBox.stream {}
+        }
+        connectionEventBox.handler = { [weak self] event in
             Task { @MainActor in
                 guard let self else { return }
                 switch event {
@@ -69,22 +94,6 @@ public final class Speaker: ObservableObject {
                 case .recovered: self.connectionState = .connected
                 }
             }
-        }
-        self.pollState = EventPollState(
-            client: client,
-            queueId: queueId,
-            pollTimeout: pollTimeout,
-            stateHolder: holder,
-            graceMinFailures: graceMinFailures,
-            graceDuration: graceDuration,
-            onConnectionEvent: onConnectionEvent
-        )
-        self.events = AsyncStream(unfolding: { [pollState] in
-            await pollState.pollOnce()
-        })
-        let streamBox = SendableStreamBox(stream: self.events)
-        self.eventDriveTask = Task(name: "Speaker.eventDrive") {
-            for await _ in streamBox.stream {}
         }
 
         // Set up callback to publish state changes on main actor; refetch play context when track changes

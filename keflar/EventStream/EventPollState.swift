@@ -3,7 +3,8 @@ import Foundation
 /// Event polling state machine: manages queue subscription and long-poll lifecycle.
 /// Lifecycle: ensure queue (create or reuse if not stale) → pollQueue → parse events → merge into state → notify. Queue is recreated when missing or older than `queueStaleInterval`.
 /// After a grace period of consecutive failures (configurable), reports connection lost and terminates the stream.
-final class EventPollState {
+/// Used only from the single event-drive task per Speaker; marked Sendable for AsyncStream unfolding capture.
+final class EventPollState: @unchecked Sendable {
     let client: any SpeakerClientProtocol
     let pollTimeout: TimeInterval
     let stateHolder: SpeakerStateHolder
