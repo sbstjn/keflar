@@ -38,8 +38,8 @@ internal let defaultPollTimeout: TimeInterval = 2
 /// Minimum consecutive event-poll failures before declaring connection lost (grace period).
 internal let connectionGraceMinFailures: Int = 3
 
-/// Minimum duration (seconds) of consecutive failures before declaring connection lost.
-internal let connectionGraceDuration: TimeInterval = 12
+/// Minimum duration (seconds) of consecutive failures before declaring connection lost. For local LAN (single app, same room) 6s is enough to avoid false disconnect on brief blips while declaring loss sooner when the speaker is off or WiFi is down.
+internal let connectionGraceDuration: TimeInterval = 6
 
 /// Delay before refetching play context after activate (like/unlike); device may apply asynchronously.
 internal let playContextRefetchDelayAfterActivate: TimeInterval = 0.4

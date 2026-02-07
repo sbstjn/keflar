@@ -449,7 +449,7 @@ public final class Speaker: ObservableObject {
         stateHolder.notifyStateChanged()
     }
 
-    /// After a control/setData action, refetch player data, playTime, volume, mute and playMode from the device and push to state so the UI updates even when the event stream is not delivering. Called centrally from StateRefreshingClient after every successful setDataWithBody.
+    /// After a control/setData action, refetch player data, playTime, volume, mute and playMode from the device and push to state. For local LAN (single app, same room) immediate refresh is fast enough; no debounce. Called centrally from StateRefreshingClient after every successful setDataWithBody.
     func refreshStateAfterControlAction() async {
         async let d = client.getData(path: playerDataPath)
         async let p = client.getData(path: playTimePath)
