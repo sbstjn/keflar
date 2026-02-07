@@ -108,22 +108,6 @@ struct DefaultSpeakerClient: SpeakerClientProtocol, Sendable {
         return first
     }
 
-    func setData(path: String, value: String) async throws {
-        try validatePath(path)
-        guard let url = makeURL(apiPath: "/api/setData", queryItems: [
-            URLQueryItem(name: "path", value: path),
-            URLQueryItem(name: "roles", value: "value"),
-            URLQueryItem(name: "value", value: value),
-        ]) else {
-            throw SpeakerConnectError.invalidURL
-        }
-        let request = makeRequest(url: url, timeout: defaultRequestTimeout)
-        let (data, response) = try await session.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw SpeakerConnectError.invalidJSON(responsePreview: "setData status \(http.statusCode); body: \(errorPreview(from: data))")
-        }
-    }
-
     func setDataWithBody(path: String, role: String, value: SendableBody) async throws {
         try validatePath(path)
         guard let url = makeURL(apiPath: "/api/setData", queryItems: nil) else {

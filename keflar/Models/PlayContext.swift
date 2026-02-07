@@ -23,9 +23,9 @@ public struct PlayContextActions: Sendable {
         self.items = items
     }
 
-    /// True if current track is in service favorites (e.g. TIDAL); derived from presence of favorite.remove action.
+    /// True if current track is in service favorites (e.g. TIDAL). Liked only when favorite.remove is present and favorite.insert is not (some devices return both; treat as not liked until only remove is offered).
     public var isLiked: Bool {
-        items.contains { $0.id == tidalActionFavoriteRemove }
+        items.contains { $0.id == tidalActionFavoriteRemove } && !items.contains { $0.id == tidalActionFavoriteInsert }
     }
 
     /// Path to invoke to add current track to favorites; nil if already liked or not available.

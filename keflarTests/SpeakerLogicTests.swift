@@ -156,6 +156,18 @@ struct SpeakerLogicTests {
         #expect(repeatMode == .all)
     }
 
+    @Test func parsePlayModeShuffleRepeatOne() {
+        let (shuffle, repeatMode) = parsePlayMode(from: ["playerPlayMode": "shuffleRepeatOne"])
+        #expect(shuffle == false)
+        #expect(repeatMode == .one)
+    }
+
+    @Test func parsePlayModeShuffleRepeatAll() {
+        let (shuffle, repeatMode) = parsePlayMode(from: ["playerPlayMode": "shuffleRepeatAll"])
+        #expect(shuffle == false)
+        #expect(repeatMode == .all)
+    }
+
     @Test func parsePlayModeNormalOrDefault() {
         let (s1, r1) = parsePlayMode(from: ["playerPlayMode": "normal"])
         #expect(s1 == false)
@@ -398,6 +410,26 @@ struct SpeakerLogicTests {
         #expect(extractPlayContextPath(from: [:]) == nil)
         let noMeta: [String: Any] = ["trackRoles": ["mediaData": [:]] as [String: Any]]
         #expect(extractPlayContextPath(from: noMeta) == nil)
+    }
+
+    @Test func extractPlayContextPathFromQueueRowItemValue() {
+        let row: [String: Any] = [
+            "itemValue": [
+                "mediaData": [
+                    "metaData": ["contentPlayContextPath": "airable:playContext:https://p.airable.io/id/tidal/track/456"] as [String: Any],
+                ] as [String: Any],
+            ] as [String: Any],
+        ]
+        #expect(extractPlayContextPathFromQueueRow(row) == "airable:playContext:https://p.airable.io/id/tidal/track/456")
+    }
+
+    @Test func extractPlayContextPathFromQueueRowTopLevelMediaData() {
+        let row: [String: Any] = [
+            "mediaData": [
+                "metaData": ["contentPlayContextPath": "airable:playContext:https://p.airable.io/id/tidal/track/789"] as [String: Any],
+            ] as [String: Any],
+        ]
+        #expect(extractPlayContextPathFromQueueRow(row) == "airable:playContext:https://p.airable.io/id/tidal/track/789")
     }
 
     @Test func parsePlayContextActionsFavoriteInsertNotLiked() {

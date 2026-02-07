@@ -16,11 +16,6 @@ struct CountingSpeakerClient: SpeakerClientProtocol, Sendable {
         return try await wrapped.getData(path: path)
     }
 
-    func setData(path: String, value: String) async throws {
-        await counter.incrementSetData()
-        try await wrapped.setData(path: path, value: value)
-    }
-
     func setDataWithBody(path: String, role: String, value: SendableBody) async throws {
         await counter.incrementSetDataWithBody()
         try await wrapped.setDataWithBody(path: path, role: role, value: value)

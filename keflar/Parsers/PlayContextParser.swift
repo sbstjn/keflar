@@ -10,6 +10,14 @@ func extractPlayContextPath(from playerData: [String: Any]) -> String? {
     return metaData["contentPlayContextPath"] as? String
 }
 
+/// Extract content play context path from a play-queue row (getRows playlists:pq/getitems). Row may have value/itemValue.mediaData.metaData or row.mediaData.metaData. Internal for testing.
+func extractPlayContextPathFromQueueRow(_ row: [String: Any]) -> String? {
+    let track = (row["value"] as? [String: Any]) ?? (row["itemValue"] as? [String: Any]) ?? row
+    let metaData = (track["mediaData"] as? [String: Any])?["metaData"] as? [String: Any]
+        ?? (row["mediaData"] as? [String: Any])?["metaData"] as? [String: Any]
+    return metaData?["contentPlayContextPath"] as? String
+}
+
 /// Parse getRows(playContext) response into PlayContextActions. Rows have type, path, title, id. Internal for testing.
 func parsePlayContextActions(from getRowsResponse: [String: Any]) -> PlayContextActions? {
     guard let rows = getRowsResponse["rows"] as? [[String: Any]] else { return nil }

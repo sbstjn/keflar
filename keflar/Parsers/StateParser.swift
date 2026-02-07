@@ -5,6 +5,8 @@ func parsePlayMode(from dict: [String: Any]) -> (shuffle: Bool, repeatMode: Repe
     let raw = dict["playerPlayMode"] as? String ?? "normal"
     switch raw {
     case "shuffle": return (true, .off)
+    case "shuffleRepeatOne": return (false, .one)
+    case "shuffleRepeatAll": return (false, .all)
     case "repeatOne": return (false, .one)
     case "repeatAll": return (false, .all)
     default: return (false, .off)

@@ -34,3 +34,6 @@ internal let queueStaleInterval: TimeInterval = 25
 
 /// Long-poll timeout for event stream. Local LAN + typically foreground app: 2s keeps progress drift small; rendering should use local interpolation at 60fps.
 internal let defaultPollTimeout: TimeInterval = 2
+
+/// Delay before refetching play context after activate (like/unlike); device may apply asynchronously.
+internal let playContextRefetchDelayAfterActivate: TimeInterval = 0.4

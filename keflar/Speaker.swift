@@ -30,11 +30,15 @@ public final class Speaker: ObservableObject {
     /// Accumulated shadow state of the remote device; updated from event batches and initial getData. Published for SwiftUI observation.
     @Published public private(set) var state: SpeakerState
 
+    /// Cached like/favorite actions for the current track; refetched when track changes and after setLiked. Nil when idle or no context.
+    @Published public private(set) var playContextActions: PlayContextActions?
+
     private let client: any SpeakerClientProtocol
     private let stateHolder: SpeakerStateHolder
     private let pollState: EventPollState
     private let events: AsyncStream<SpeakerEvents>
     private var eventDriveTask: Task<Void, Never>?
+    private var lastPlayContextTrackKey: String?
 
     init(
         model: String,
@@ -59,11 +63,42 @@ public final class Speaker: ObservableObject {
             for await _ in streamBox.stream {}
         }
 
-        // Set up callback to publish state changes on main actor
+        // Set up callback to publish state changes on main actor; refetch play context when track changes
         holder.onStateChange = { [weak self] box in
             Task { @MainActor [weak self] in
-                self?.state = box.value
+                guard let self else { return }
+                self.state = box.value
+                self.refreshPlayContextIfTrackChanged()
             }
+        }
+    }
+
+    /// Compute a key that changes when the current track changes (for play context refetch).
+    private func playContextTrackKey(from state: SpeakerState) -> String {
+        let raw = state.other[playerDataPath] as? [String: Any]
+        let path = raw.flatMap { extractPlayContextPath(from: $0) }
+        let songTitle = raw.flatMap { parseCurrentSong(from: $0).title }
+        return path ?? songTitle ?? "\(state.currentQueueIndex ?? -1)"
+    }
+
+    /// Refetch play context when track key changes; clear when idle.
+    private func refreshPlayContextIfTrackChanged() {
+        let key = playContextTrackKey(from: state)
+        if key == lastPlayContextTrackKey { return }
+        lastPlayContextTrackKey = key
+
+        let raw = state.other[playerDataPath] as? [String: Any]
+        let song = raw.map { parseCurrentSong(from: $0) }
+        let isIdle = (song?.title == nil && song?.artist == nil) && (state.playerState != "playing")
+        if isIdle {
+            playContextActions = nil
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let actions = try? await self.fetchPlayContextActions()
+            self.playContextActions = actions
         }
     }
 
@@ -75,8 +110,8 @@ public final class Speaker: ObservableObject {
 
     /// Set physical source / power.
     public func setSource(_ source: PhysicalSource) async throws {
-        let value = "{\"type\":\"kefPhysicalSource\",\"kefPhysicalSource\":\"\(source.rawValue)\"}"
-        try await client.setData(path: "settings:/kef/play/physicalSource", value: value)
+        let value: [String: Any] = ["type": "kefPhysicalSource", "kefPhysicalSource": source.rawValue]
+        try await client.setDataWithBody(path: "settings:/kef/play/physicalSource", role: "value", value: SendableBody(value: value))
     }
 
     /// Power on the speaker (same as setSource(.powerOn)).
@@ -92,19 +127,20 @@ public final class Speaker: ObservableObject {
     /// Set volume 0–100. 0 is mute.
     public func setVolume(_ volume: Int) async throws {
         let clamped = min(max(volume, 0), 100)
-        let value = "{\"type\":\"i32_\",\"i32_\":\(clamped)}"
-        try await client.setData(path: "player:volume", value: value)
+        let value: [String: Any] = ["type": "i32_", "i32_": clamped]
+        try await client.setDataWithBody(path: "player:volume", role: "value", value: SendableBody(value: value))
     }
 
     /// Set mute on/off via settings:/mediaPlayer/mute.
     public func setMute(_ muted: Bool) async throws {
-        let value = "{\"type\":\"bool_\",\"bool_\":\(muted ? "true" : "false")}"
-        try await client.setData(path: "settings:/mediaPlayer/mute", value: value)
+        let value: [String: Any] = ["type": "bool_", "bool_": muted]
+        try await client.setDataWithBody(path: "settings:/mediaPlayer/mute", role: "value", value: SendableBody(value: value))
     }
 
-    /// Set shuffle on/off via settings:/mediaPlayer/playMode. Uses playMode "shuffle" when on, "normal" when off.
+    /// Set shuffle on/off via settings:/mediaPlayer/playMode. Preserves current repeat when turning shuffle off; turning shuffle on sends "shuffle" (device single-field: repeat off).
     public func setShuffle(_ on: Bool) async throws {
-        let mode = on ? "shuffle" : "normal"
+        let repeatMode = state.repeatMode ?? .off
+        let mode = playModeString(shuffle: on, repeatMode: repeatMode)
         try await client.setDataWithBody(
             path: playModePath,
             role: "value",
@@ -112,19 +148,25 @@ public final class Speaker: ObservableObject {
         )
     }
 
-    /// Set repeat mode via settings:/mediaPlayer/playMode. Replaces current play mode (e.g. turns off shuffle when setting repeat).
+    /// Set repeat mode via settings:/mediaPlayer/playMode. Preserves shuffle when setting repeat off; setting repeat on sends shuffleRepeatOne/shuffleRepeatAll (device single-field: shuffle off).
     public func setRepeat(_ mode: RepeatMode) async throws {
-        let modeString: String
-        switch mode {
-        case .off: modeString = "normal"
-        case .one: modeString = "repeatOne"
-        case .all: modeString = "repeatAll"
-        }
+        let shuffleOn = state.shuffle ?? false
+        let modeString = playModeString(shuffle: shuffleOn, repeatMode: mode)
         try await client.setDataWithBody(
             path: playModePath,
             role: "value",
             value: SendableBody(value: ["type": "playerPlayMode", "playerPlayMode": modeString])
         )
+    }
+
+    /// Compute playerPlayMode string from shuffle and repeat. Device has a single field: shuffle and repeat are mutually exclusive in the API (no combined value). Device vocabulary: shuffle, normal, shuffleRepeatOne, shuffleRepeatAll.
+    private func playModeString(shuffle: Bool, repeatMode: RepeatMode) -> String {
+        if shuffle { return "shuffle" }
+        switch repeatMode {
+        case .off: return "normal"
+        case .one: return "shuffleRepeatOne"
+        case .all: return "shuffleRepeatAll"
+        }
     }
 
     // MARK: - Transport (player:player/control, POST setData)
@@ -338,11 +380,24 @@ public final class Speaker: ObservableObject {
         cachedPlayerData.flatMap { extractPlayContextPath(from: $0.raw) }
     }
 
-    /// Fetch available actions for the current track (like/unlike, add to playlist). Uses `currentPlayContextPath`; nil if no context. Throws on network/API errors.
+    /// Fetch available actions for the current track (like/unlike, add to playlist). Uses `currentPlayContextPath` when present; otherwise derives path from current queue row (getRows playlists:pq/getitems). Returns nil if no context. Throws on network/API errors.
     public func fetchPlayContextActions() async throws -> PlayContextActions? {
-        guard let path = currentPlayContextPath else { return nil }
+        var path = currentPlayContextPath
+        if path == nil, let queuePath = try await playContextPathFromCurrentQueueRow() {
+            path = queuePath
+        }
+        guard let path else { return nil }
         let response = try await client.getRows(path: path, from: 0, to: 9)
         return parsePlayContextActions(from: response)
+    }
+
+    /// Derive play context path from the current queue item when player data does not include it (e.g. device omits contentPlayContextPath in getData).
+    private func playContextPathFromCurrentQueueRow() async throws -> String? {
+        let index = state.currentQueueIndex ?? 0
+        let response = try await client.getRows(path: playQueuePath, from: index, to: index)
+        let rows = response["rows"] as? [[String: Any]] ?? []
+        guard let first = rows.first else { return nil }
+        return extractPlayContextPathFromQueueRow(first)
     }
 
     /// Invoke an action by path (e.g. from `PlayContextActions.favoriteInsertPath`). Uses POST setData with role "activate" and empty value.
@@ -350,7 +405,7 @@ public final class Speaker: ObservableObject {
         try await client.setDataWithBody(path: path, role: "activate", value: SendableBody(value: [:]))
     }
 
-    /// Set liked (favorite) state for the current track. Fetches play context actions if needed; throws if no context or action unavailable (e.g. not Tidal).
+    /// Set liked (favorite) state for the current track. Fetches play context actions if needed; throws if no context or action unavailable (e.g. not Tidal). Updates playContextActions after success.
     public func setLiked(_ liked: Bool) async throws {
         let actions = try await fetchPlayContextActions()
         guard let actions = actions else {
@@ -366,6 +421,13 @@ public final class Speaker: ObservableObject {
             throw SpeakerConnectError.invalidSource(liked ? "add to favorites not available" : "remove from favorites not available")
         }
         try await activateAction(path: path)
+        try? await Task.sleep(for: .seconds(playContextRefetchDelayAfterActivate))
+        var updated = try? await fetchPlayContextActions()
+        if updated?.isLiked != liked, updated != nil {
+            try? await Task.sleep(for: .seconds(playContextRefetchDelayAfterActivate))
+            updated = try? await fetchPlayContextActions()
+        }
+        playContextActions = updated
     }
 
     // MARK: - Play queue

@@ -73,8 +73,7 @@ struct SendableBody: @unchecked Sendable {
 /// Transport abstraction for KEF speaker API; enables injection and testing without a real device.
 protocol SpeakerClientProtocol: Sendable {
     func getData(path: String) async throws -> [String: Any]
-    func setData(path: String, value: String) async throws
-    /// POST setData with JSON body (path, role, value). Used for player:player/control (transport, play-by-index).
+    /// POST setData with JSON body (path, role, value). Used for player:player/control (transport, play-by-index) and value updates (volume, mute, play mode, source).
     func setDataWithBody(path: String, role: String, value: SendableBody) async throws
     func getRows(path: String, from: Int, to: Int) async throws -> [String: Any]
     func modifyQueue() async throws -> String
