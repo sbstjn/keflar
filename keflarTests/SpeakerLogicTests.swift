@@ -158,13 +158,13 @@ struct SpeakerLogicTests {
 
     @Test func parsePlayModeShuffleRepeatOne() {
         let (shuffle, repeatMode) = parsePlayMode(from: ["playerPlayMode": "shuffleRepeatOne"])
-        #expect(shuffle == false)
+        #expect(shuffle == true)
         #expect(repeatMode == .one)
     }
 
     @Test func parsePlayModeShuffleRepeatAll() {
         let (shuffle, repeatMode) = parsePlayMode(from: ["playerPlayMode": "shuffleRepeatAll"])
-        #expect(shuffle == false)
+        #expect(shuffle == true)
         #expect(repeatMode == .all)
     }
 
