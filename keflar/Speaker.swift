@@ -1,5 +1,5 @@
 import Foundation
-import Combine
+import Observation
 
 // Speaker class relies on modular components:
 // - Models/: SpeakerState, SpeakerEvents, CurrentSong, etc.
@@ -23,6 +23,11 @@ private final class ConnectionEventBox: @unchecked Sendable {
 /// Holds a weak reference to Speaker so StateRefreshingClient can trigger state refresh after setData without capturing Speaker in init. Set by SpeakerConnection after creating the Speaker.
 final class RefresherBox: @unchecked Sendable {
     weak var speaker: Speaker?
+}
+
+/// Holds the event-drive task so deinit can cancel it from a nonisolated context (Speaker is @MainActor).
+private final class EventDriveTaskBox: @unchecked Sendable {
+    var task: Task<Void, Never>?
 }
 
 /// Wraps a SpeakerClientProtocol and invokes state refresh on the RefresherBox's speaker after every successful setDataWithBody. Ensures UI state updates after any API write without per-handler calls.
@@ -61,27 +66,28 @@ final class StateRefreshingClient: SpeakerClientProtocol, @unchecked Sendable {
 ///
 /// The library subscribes to the device event queue and long-polls automatically; events are merged into `state` internally. Observe `state` (or `$state`) for updates; no need to consume an event stream from the app.
 ///
-/// **SwiftUI Integration:** `Speaker` conforms to `ObservableObject` with `@Published` state. SwiftUI views can observe state changes using `@StateObject` or `@ObservedObject`. State updates are automatically dispatched to the main thread for UI rendering.
+/// **SwiftUI Integration:** `Speaker` is `@Observable`. Use `@State` where the instance is owned, or `let` / `@Bindable` when passed to child views. State updates are automatically dispatched to the main thread for UI rendering.
 ///
 /// **Concurrency:** `Speaker` is not `Sendable`. Use a single `Speaker` instance from one isolation context (e.g. one actor or the main thread). Do not pass it across actor boundaries or share it between concurrent tasks. Create one instance per connection and call its methods from the same context that holds the reference.
 @MainActor
-public final class Speaker: ObservableObject {
+@Observable
+public final class Speaker {
     public let model: String
     public let version: String
-    /// Accumulated shadow state of the remote device; updated from event batches and initial getData. Published for SwiftUI observation.
-    @Published public private(set) var state: SpeakerState
+    /// Accumulated shadow state of the remote device; updated from event batches and initial getData.
+    public private(set) var state: SpeakerState
 
     /// Cached like/favorite actions for the current track; refetched when track changes and after setLiked. Nil when idle or no context.
-    @Published public private(set) var playContextActions: PlayContextActions?
+    public private(set) var playContextActions: PlayContextActions?
 
     /// Event-stream connection health. Use for "Reconnecting…" or routing to device picker when `.disconnected`.
-    @Published public private(set) var connectionState: ConnectionState = .connected
+    public private(set) var connectionState: ConnectionState = .connected
 
     private let client: any SpeakerClientProtocol
     private let stateHolder: SpeakerStateHolder
     private let pollState: EventPollState
     private let events: AsyncStream<SpeakerEvents>
-    private var eventDriveTask: Task<Void, Never>?
+    private let eventDriveTaskBox = EventDriveTaskBox()
     private var lastPlayContextTrackKey: String?
 
     init(
@@ -117,7 +123,7 @@ public final class Speaker: ObservableObject {
             await pollState.pollOnce()
         })
         let streamBox = SendableStreamBox(stream: self.events)
-        self.eventDriveTask = Task(name: "Speaker.eventDrive") {
+        self.eventDriveTaskBox.task = Task(name: "Speaker.eventDrive") {
             for await _ in streamBox.stream {}
         }
         connectionEventBox.handler = { [weak self] event in
@@ -171,7 +177,7 @@ public final class Speaker: ObservableObject {
     }
 
     deinit {
-        eventDriveTask?.cancel()
+        eventDriveTaskBox.task?.cancel()
     }
 
     // MARK: - Setters
