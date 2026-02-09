@@ -324,6 +324,17 @@ final class EnhancedMockPlaylistManager: PlaylistManager, @unchecked Sendable {
         return fetchPlayQueueResult
     }
 
+    func fetchPlayQueueWithRaw(from startIndex: Int, to endIndex: Int) async throws -> PlayQueueWithRawResult {
+        let result = try await fetchPlayQueue(from: startIndex, to: endIndex)
+        return PlayQueueWithRawResult(result: result, rawRows: [])
+    }
+
+    func playNext(track: QueueTrack) async throws {}
+
+    func addToEndOfQueue(track: QueueTrack) async throws {}
+
+    func playQueueItem(at index: Int, track: QueueTrack) async throws {}
+
     func hasServiceConfiguration(_ service: AudioService) async throws -> Bool {
         hasServiceConfigurationCalls.append(service)
         return hasServiceConfigurationResult

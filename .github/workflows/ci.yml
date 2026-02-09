@@ -41,7 +41,7 @@ jobs:
             xcode_select: /Applications/Xcode_26.2.app/Contents/Developer
           - name: tvOS 26.0 Simulator
             use_swift_build: false
-            destination: 'platform=tvOS Simulator,OS=26.0,name=Apple TV,arch=arm64'
+            destination: 'platform=tvOS Simulator'
             sdk: appletvsimulator26.0
             xcode_select: /Applications/Xcode_26.0.1.app/Contents/Developer
           - name: visionOS 26.0 Simulator
