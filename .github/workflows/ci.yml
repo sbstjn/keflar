@@ -1,0 +1,110 @@
+# Build and test on every push to main.
+# Runner: macOS 26 (Tahoe) — https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS 26.0
+            use_swift_build: true
+            destination: ''
+            sdk: ''
+            xcode_select: /Applications/Xcode_26.0.1.app/Contents/Developer
+          - name: iOS 26.0.1 Simulator (iPhone 17)
+            use_swift_build: false
+            destination: 'platform=iOS Simulator,OS=26.0.1,name=iPhone 17,arch=arm64'
+            sdk: iphonesimulator26.0
+            xcode_select: /Applications/Xcode_26.0.1.app/Contents/Developer
+          # - name: iOS 26.0.1 Simulator (iPad mini A17 Pro)
+          #   use_swift_build: false
+          #   destination: 'platform=iOS Simulator,OS=26.0.1,name=iPad mini (A17 Pro),arch=arm64'
+          #   sdk: iphonesimulator26.0
+          #   xcode_select: /Applications/Xcode_26.0.1.app/Contents/Developer
+          - name: iOS 26.1 Simulator (iPhone 17)
+            use_swift_build: false
+            destination: 'platform=iOS Simulator,OS=26.1,name=iPhone 17,arch=arm64'
+            sdk: iphonesimulator26.1
+            xcode_select: /Applications/Xcode_26.1.1.app/Contents/Developer
+          - name: iOS 26.2 Simulator (iPhone 17)
+            use_swift_build: false
+            destination: 'platform=iOS Simulator,OS=26.2,name=iPhone 17,arch=arm64'
+            sdk: iphonesimulator26.2
+            xcode_select: /Applications/Xcode_26.2.app/Contents/Developer
+          - name: tvOS 26.0 Simulator
+            use_swift_build: false
+            destination: 'platform=tvOS Simulator,OS=26.0,name=Apple TV,arch=arm64'
+            sdk: appletvsimulator26.0
+            xcode_select: /Applications/Xcode_26.0.1.app/Contents/Developer
+          - name: visionOS 26.0 Simulator
+            use_swift_build: false
+            destination: 'platform=visionOS Simulator,OS=26.0,name=Apple Vision Pro,arch=arm64'
+            sdk: xrsimulator26.0
+            xcode_select: /Applications/Xcode_26.0.1.app/Contents/Developer
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Swift Package Manager
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Select Xcode
+        run: sudo xcode-select -s ${{ matrix.xcode_select }}
+
+      - name: Build (${{ matrix.name }})
+        run: |
+          if [ "${{ matrix.use_swift_build }}" = "true" ]; then
+            swift build
+          else
+            xcodebuild -project keflar.xcodeproj -scheme keflar -destination '${{ matrix.destination }}' -sdk ${{ matrix.sdk }} CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO build
+          fi
+
+  test:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Swift Package Manager
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Select Xcode 26.0.1
+        run: sudo xcode-select -s /Applications/Xcode_26.0.1.app/Contents/Developer
+
+      - name: Test
+        run: swift test
+
+  docs:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Swift Package Manager
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Select Xcode 26.0.1
+        run: sudo xcode-select -s /Applications/Xcode_26.0.1.app/Contents/Developer
+
+      - name: Generate documentation
+        run: swift package --allow-writing-to-package-directory generate-documentation
